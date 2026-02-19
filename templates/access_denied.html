@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}دسترسی مجاز نیست - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 50px auto 0;">
+    <div class="card-header text-center">
+        <h2>دسترسی مجاز نیست</h2>
+    </div>
+    <div class="card-body text-center">
+        <div class="alert alert-error">
+            <strong>متأسفیم!</strong> شما به سرویس <strong>{{ service_name }}</strong> دسترسی ندارید.
+        </div>
+        
+        <p class="text-muted mb-3">
+            برای دریافت دسترسی، لطفاً با مدیر سیستم تماس بگیرید.
+        </p>
+        
+        <div class="mb-3">
+            <strong>اطلاعات درخواست:</strong><br>
+            <small class="text-muted">
+                سرویس: {{ service_name }}<br>
+                Client ID: {{ client_id }}<br>
+                کاربر: {{ user.name }} ({{ user.email }})
+            </small>
+        </div>
+        
+        <a href="/profile" class="btn btn-secondary">بازگشت به پروفایل</a>
+        <a href="/logout" class="btn btn-danger">خروج</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}کنترل دسترسی - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>کنترل دسترسی</h2>
+        <p class="text-muted">مدیریت دسترسی کاربران به سرویس‌های مختلف</p>
+    </div>
+</div>
+
+<!-- Grant Access Form -->
+<div class="card">
+    <div class="card-header">
+        <h4>اعطای دسترسی جدید</h4>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/admin/access/grant">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                <div class="form-group">
+                    <label for="user_id">کاربر:</label>
+                    <select id="user_id" name="user_id" required>
+                        <option value="">انتخاب کاربر...</option>
+                        {% for user_item in users %}
+                        <option value="{{ user_item.id }}">{{ user_item.name }} ({{ user_item.email }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="service_name">سرویس:</label>
+                    <select id="service_name" name="service_name" required>
+                        <option value="">انتخاب سرویس...</option>
+                        {% for service_key, service_domain in service_domains.items() %}
+                        <option value="{{ service_key }}">{{ service_key }} ({{ service_domain }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="days">مدت اعتبار (روز):</label>
+                    <select id="days" name="days" required>
+                        <option value="7">7 روز</option>
+                        <option value="14">14 روز</option>
+                        <option value="30" selected>30 روز (حداکثر)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-success">اعطای دسترسی</button>
+        </form>
+    </div>
+</div>
+
+<!-- Users Access Matrix -->
+<div class="card">
+    <div class="card-header">
+        <h4>ماتریس دسترسی کاربران</h4>
+    </div>
+    <div class="card-body">
+        {% if users %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>کاربر</th>
+                        <th>نقش</th>
+                        {% for service_key, service_domain in service_domains.items() %}
+                        <th class="text-center">{{ service_key }}<br><small>{{ service_domain }}</small></th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_item in users %}
+                    <tr>
+                        <td>
+                            <strong>{{ user_item.name }}</strong><br>
+                            <small class="text-muted">{{ user_item.email }}</small>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ user_item.role }}">{{ user_item.role }}</span>
+                        </td>
+                        {% for service_key, service_domain in service_domains.items() %}
+                        <td class="text-center">
+                            {% set has_role_access = '*' in roles[user_item.role]['services'] or service_domain in roles[user_item.role]['services'] %}
+                            {% set active_grant = user_item.access_grants|selectattr('service_name', 'equalto', service_key)|selectattr('expires_at', 'gt', moment.now())|first %}
+                            
+                            {% if has_role_access and active_grant %}
+                            <span class="badge badge-success">فعال</span><br>
+                            <small class="text-muted">تا {{ active_grant.expires_at.strftime('%m/%d') }}</small>
+                            {% elif has_role_access %}
+                            <span class="badge badge-warning">نیاز به تأیید</span><br>
+                            <button onclick="grantAccess('{{ user_item.id }}', '{{ service_key }}')" class="btn btn-sm btn-success">اعطا</button>
+                            {% else %}
+                            <span class="badge badge-danger">عدم دسترسی</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            هیچ کاربری یافت نشد.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Active Grants -->
+<div class="card">
+    <div class="card-header">
+        <h4>دسترسی‌های فعال</h4>
+    </div>
+    <div class="card-body">
+        {% set all_grants = [] %}
+        {% for user_item in users %}
+        {% for grant in user_item.access_grants %}
+        {% if grant.expires_at > moment.now() %}
+        {% set _ = all_grants.append((user_item, grant)) %}
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+        
+        {% if all_grants %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>کاربر</th>
+                        <th>سرویس</th>
+                        <th>تاریخ اعطا</th>
+                        <th>انقضا</th>
+                        <th>اعطاکننده</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_item, grant in all_grants %}
+                    <tr>
+                        <td>
+                            <strong>{{ user_item.name }}</strong><br>
+                            <small class="text-muted">{{ user_item.email }}</small>
+                        </td>
+                        <td>
+                            <strong>{{ grant.service_name }}</strong><br>
+                            <small class="text-muted">{{ service_domains.get(grant.service_name, 'نامشخص') }}</small>
+                        </td>
+                        <td>{{ grant.granted_at.strftime('%Y/%m/%d') }}</td>
+                        <td>{{ grant.expires_at.strftime('%Y/%m/%d') }}</td>
+                        <td>{{ grant.granted_by }}</td>
+                        <td>
+                            {% set days_left = (grant.expires_at - moment.now()).days %}
+                            {% if days_left > 7 %}
+                            <span class="badge badge-success">فعال</span>
+                            {% elif days_left > 0 %}
+                            <span class="badge badge-warning">{{ days_left }} روز باقی</span>
+                            {% else %}
+                            <span class="badge badge-danger">منقضی شده</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button onclick="revokeAccess('{{ user_item.id }}', '{{ grant.service_name }}')" 
+                                    class="btn btn-danger btn-sm">لغو</button>
+                            <button onclick="renewAccess('{{ user_item.id }}', '{{ grant.service_name }}')" 
+                                    class="btn btn-success btn-sm">تمدید</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            هیچ دسترسی فعالی یافت نشد.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function grantAccess(userId, serviceName) {
+    document.getElementById('user_id').value = userId;
+    document.getElementById('service_name').value = serviceName;
+    document.getElementById('user_id').focus();
+}
+
+function revokeAccess(userId, serviceName) {
+    if (confirm(`آیا مطمئن هستید که می‌خواهید دسترسی ${serviceName} را لغو کنید؟`)) {
+        // TODO: Implement access revocation
+        alert(`دسترسی ${serviceName} لغو شد`);
+    }
+}
+
+function renewAccess(userId, serviceName) {
+    const days = prompt('تعداد روزهای تمدید:', '30');
+    if (days && parseInt(days) > 0 && parseInt(days) <= 30) {
+        // TODO: Implement access renewal
+        alert(`دسترسی ${serviceName} برای ${days} روز تمدید شد`);
+    }
+}
+</script>
+{% endblock %}

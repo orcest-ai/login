@@ -1,24 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Sign In — Orcest AI{% endblock %}
-{% block body %}
-<div class="content">
-<div class="card">
-<h2>Sign in to Orcest AI</h2>
-<p>Access all Orcest ecosystem services with one account.</p>
-{% if error %}
-<div class="error">{{ error }}</div>
-{% endif %}
-<form method="post" action="/login">
-<div class="form-group">
-<label for="email">Email</label>
-<input type="email" id="email" name="email" required placeholder="you@example.com" autocomplete="email">
-</div>
-<div class="form-group">
-<label for="password">Password</label>
-<input type="password" id="password" name="password" required placeholder="Enter your password" autocomplete="current-password">
-</div>
-<button type="submit" class="btn">Sign In</button>
-</form>
-</div>
+
+{% block title %}ورود - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 400px; margin: 50px auto 0;">
+    <div class="card-header text-center">
+        <h2>ورود به سیستم</h2>
+        <p class="text-muted">دسترسی به تمام سرویس‌های اکوسیستم Orcest با یک حساب کاربری</p>
+    </div>
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/login">
+            <div class="form-group">
+                <label for="email">آدرس ایمیل:</label>
+                <input type="email" id="email" name="email" required placeholder="you@example.com" autocomplete="email">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">رمز عبور:</label>
+                <input type="password" id="password" name="password" required placeholder="رمز عبور خود را وارد کنید" autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="btn">ورود</button>
+        </form>
+    </div>
 </div>
 {% endblock %}

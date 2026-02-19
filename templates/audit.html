@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}گزارش حسابرسی - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>گزارش حسابرسی</h2>
+        <p class="text-muted">مشاهده تمام فعالیت‌ها و رویدادهای امنیتی سیستم</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4>فعالیت‌های اخیر</h4>
+        <div class="d-flex" style="gap: 10px;">
+            <select onchange="filterByAction(this.value)" class="form-control" style="width: auto;">
+                <option value="">همه عملیات</option>
+                <option value="login_success">ورود موفق</option>
+                <option value="login_failed">ورود ناموفق</option>
+                <option value="logout">خروج</option>
+                <option value="oauth2_authorize">احراز هویت OIDC</option>
+                <option value="token_issued">صدور توکن</option>
+                <option value="access_granted">اعطای دسترسی</option>
+                <option value="access_denied">رد دسترسی</option>
+                <option value="user_created">ایجاد کاربر</option>
+                <option value="session_revoked_by_admin">لغو جلسه توسط مدیر</option>
+            </select>
+            <button onclick="exportLogs()" class="btn btn-secondary btn-sm">خروجی Excel</button>
+            <button onclick="refreshLogs()" class="btn btn-secondary btn-sm">بروزرسانی</button>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if logs %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>زمان</th>
+                        <th>کاربر</th>
+                        <th>عملیات</th>
+                        <th>آدرس IP</th>
+                        <th>User Agent</th>
+                        <th>جزئیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr class="audit-row" data-action="{{ log.action }}">
+                        <td>
+                            <strong>{{ log.timestamp.strftime('%Y/%m/%d') }}</strong><br>
+                            <small class="text-muted">{{ log.timestamp.strftime('%H:%M:%S') }}</small>
+                        </td>
+                        <td>
+                            {% if log.user %}
+                            <strong>{{ log.user.name }}</strong><br>
+                            <small class="text-muted">{{ log.user.email }}</small><br>
+                            <span class="badge badge-{{ log.user.role }}">{{ log.user.role }}</span>
+                            {% else %}
+                            <span class="text-muted">سیستم</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.action == 'login_success' %}
+                            <span class="badge badge-success">ورود موفق</span>
+                            {% elif log.action == 'login_failed' %}
+                            <span class="badge badge-danger">ورود ناموفق</span>
+                            {% elif log.action == 'logout' %}
+                            <span class="badge badge-info">خروج</span>
+                            {% elif log.action == 'oauth2_authorize' %}
+                            <span class="badge badge-success">احراز OIDC</span>
+                            {% elif log.action == 'token_issued' %}
+                            <span class="badge badge-info">صدور توکن</span>
+                            {% elif log.action == 'access_granted' %}
+                            <span class="badge badge-success">اعطای دسترسی</span>
+                            {% elif log.action == 'access_denied' %}
+                            <span class="badge badge-danger">رد دسترسی</span>
+                            {% elif log.action == 'user_created' %}
+                            <span class="badge badge-success">ایجاد کاربر</span>
+                            {% elif log.action == 'session_revoked_by_admin' %}
+                            <span class="badge badge-warning">لغو جلسه</span>
+                            {% else %}
+                            <span class="badge badge-secondary">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.ip_address %}
+                            <code>{{ log.ip_address }}</code>
+                            {% else %}
+                            <span class="text-muted">نامشخص</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.user_agent %}
+                            <small>{{ log.user_agent[:50] }}{% if log.user_agent|length > 50 %}...{% endif %}</small>
+                            {% else %}
+                            <span class="text-muted">نامشخص</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.details %}
+                            <button onclick="showDetails('{{ log.id }}')" class="btn btn-sm btn-info">مشاهده</button>
+                            <div id="details-{{ log.id }}" style="display: none;">
+                                <pre style="font-size: 11px; margin-top: 5px;">{{ log.details }}</pre>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if has_prev %}
+            <a href="?page={{ page - 1 }}">&laquo; قبلی</a>
+            {% endif %}
+            
+            {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="current">{{ p }}</span>
+            {% else %}
+            <a href="?page={{ p }}">{{ p }}</a>
+            {% endif %}
+            {% endfor %}
+            
+            {% if has_next %}
+            <a href="?page={{ page + 1 }}">بعدی &raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-info">
+            هیچ رویداد حسابرسی یافت نشد.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h4>آمار امنیتی</h4>
+    </div>
+    <div class="card-body">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ logs|selectattr('action', 'equalto', 'login_success')|list|length }}</div>
+                <div class="stat-label">ورود موفق</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ logs|selectattr('action', 'equalto', 'login_failed')|list|length }}</div>
+                <div class="stat-label">ورود ناموفق</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ logs|selectattr('action', 'equalto', 'access_denied')|list|length }}</div>
+                <div class="stat-label">رد دسترسی</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ logs|map(attribute='ip_address')|unique|list|length }}</div>
+                <div class="stat-label">IP های منحصربه‌فرد</div>
+            </div>
+        </div>
+        
+        <div class="alert alert-info mt-3">
+            <strong>نکته امنیتی:</strong> رویدادهای مشکوک مانند تلاش‌های ورود ناموفق متعدد یا درخواست‌های دسترسی غیرمجاز را بررسی کنید.
+        </div>
+    </div>
+</div>
+
+<script>
+function showDetails(logId) {
+    const details = document.getElementById('details-' + logId);
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        event.target.textContent = 'مخفی';
+    } else {
+        details.style.display = 'none';
+        event.target.textContent = 'مشاهده';
+    }
+}
+
+function filterByAction(action) {
+    const rows = document.querySelectorAll('.audit-row');
+    rows.forEach(row => {
+        if (!action || row.dataset.action === action) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function refreshLogs() {
+    window.location.reload();
+}
+
+function exportLogs() {
+    // TODO: Implement Excel export
+    alert('خروجی Excel در حال توسعه است');
+}
+
+// Auto-refresh every 60 seconds
+setInterval(refreshLogs, 60000);
+</script>
+{% endblock %}

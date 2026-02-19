@@ -1,43 +1,130 @@
 {% extends "base.html" %}
-{% block title %}Admin — Orcest AI{% endblock %}
-{% block body %}
-<nav class="nav">
-<span class="nav-brand">Orcest AI</span>
-<div class="nav-links">
-<a href="/profile">Profile</a>
-<a href="/admin">Admin</a>
-<a href="/users">Users</a>
-<a href="/applications">Apps</a>
-<a href="/logout">Sign Out</a>
+
+{% block title %}داشبورد مدیریت - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>داشبورد مدیریت</h2>
+        <p class="text-muted">مدیریت کاربران و دسترسی‌های سیستم SSO</p>
+    </div>
 </div>
-</nav>
-<div class="content">
-<div class="card wide-card">
-<h2>Admin Dashboard</h2>
-<p>Manage the Orcest AI identity system.</p>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:20px">
-<div style="background:#1f2937;padding:20px;border-radius:12px;text-align:center">
-<div style="font-size:2rem;font-weight:800;color:#60a5fa">{{ users|length }}</div>
-<div style="color:#94a3b8;font-size:.85rem">Total Users</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_users }}</div>
+        <div class="stat-label">کل کاربران</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.active_users }}</div>
+        <div class="stat-label">کاربران فعال</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.active_sessions }}</div>
+        <div class="stat-label">جلسات فعال</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ roles|length }}</div>
+        <div class="stat-label">نقش‌های تعریف شده</div>
+    </div>
 </div>
-<div style="background:#1f2937;padding:20px;border-radius:12px;text-align:center">
-<div style="font-size:2rem;font-weight:800;color:#4ade80">{{ clients|length }}</div>
-<div style="color:#94a3b8;font-size:.85rem">OIDC Clients</div>
+
+<div class="card">
+    <div class="card-header">
+        <h4>عملیات سریع</h4>
+    </div>
+    <div class="card-body">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <a href="/admin/users" class="btn">مدیریت کاربران</a>
+            <a href="/admin/sessions" class="btn btn-secondary">مدیریت جلسات</a>
+            <a href="/admin/access" class="btn btn-success">کنترل دسترسی</a>
+            <a href="/admin/applications" class="btn btn-info">اپلیکیشن‌ها</a>
+            <a href="/admin/audit" class="btn btn-warning">گزارش حسابرسی</a>
+        </div>
+    </div>
 </div>
-<div style="background:#1f2937;padding:20px;border-radius:12px;text-align:center">
-<div style="font-size:2rem;font-weight:800;color:#fbbf24">{{ roles|length }}</div>
-<div style="color:#94a3b8;font-size:.85rem">Roles</div>
+
+<div class="card">
+    <div class="card-header">
+        <h4>آخرین فعالیت‌ها</h4>
+    </div>
+    <div class="card-body">
+        {% if recent_logs %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>زمان</th>
+                        <th>کاربر</th>
+                        <th>عملیات</th>
+                        <th>آدرس IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in recent_logs %}
+                    <tr>
+                        <td>{{ log.timestamp.strftime('%Y/%m/%d %H:%M') }}</td>
+                        <td>
+                            {% if log.user %}
+                            {{ log.user.name }}<br>
+                            <small class="text-muted">{{ log.user.email }}</small>
+                            {% else %}
+                            <span class="text-muted">سیستم</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-info">{{ log.action }}</span>
+                        </td>
+                        <td>{{ log.ip_address or 'نامشخص' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="text-center mt-3">
+            <a href="/admin/audit" class="btn btn-secondary btn-sm">مشاهده کامل گزارش‌ها</a>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            هیچ فعالیت اخیری یافت نشد.
+        </div>
+        {% endif %}
+    </div>
 </div>
-</div>
-<h3 style="margin-top:24px;color:#f8fafc">Ecosystem Services</h3>
-<table>
-<tr><th>Service</th><th>URL</th><th>Status</th></tr>
-<tr><td>RainyModel</td><td>rm.orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
-<tr><td>Lamino</td><td>llm.orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
-<tr><td>Maestrist</td><td>agent.orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
-<tr><td>Orcide</td><td>ide.orcest.ai</td><td><span class="badge badge-researcher">Desktop</span></td></tr>
-<tr><td>Orcest AI</td><td>orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
-</table>
-</div>
+
+<div class="card">
+    <div class="card-header">
+        <h4>نقش‌ها و مجوزها</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>نقش</th>
+                        <th>توضیحات</th>
+                        <th>سرویس‌های مجاز</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for role_name, role_info in roles.items() %}
+                    <tr>
+                        <td><span class="badge badge-{{ role_name }}">{{ role_name }}</span></td>
+                        <td>{{ role_info.description }}</td>
+                        <td>
+                            {% if '*' in role_info.services %}
+                            <span class="badge badge-success">همه سرویس‌ها</span>
+                            {% else %}
+                            {% for service in role_info.services %}
+                            <span class="badge badge-info">{{ service }}</span>
+                            {% endfor %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock %}

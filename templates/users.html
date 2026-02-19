@@ -1,46 +1,151 @@
 {% extends "base.html" %}
-{% block title %}Users — Orcest AI{% endblock %}
-{% block body %}
-<nav class="nav">
-<span class="nav-brand">Orcest AI</span>
-<div class="nav-links">
-<a href="/profile">Profile</a>
-<a href="/admin">Admin</a>
-<a href="/users">Users</a>
-<a href="/applications">Apps</a>
-<a href="/logout">Sign Out</a>
+
+{% block title %}مدیریت کاربران - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2>مدیریت کاربران</h2>
+        <button onclick="toggleCreateForm()" class="btn btn-success">افزودن کاربر جدید</button>
+    </div>
 </div>
-</nav>
-<div class="content">
-<div class="card wide-card">
-<h2>User Management</h2>
-<p>Manage users across the Orcest AI ecosystem.</p>
-<h3 style="margin-top:20px;color:#f8fafc">Create User</h3>
-<form method="post" action="/users/create" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:end;margin-top:12px">
-<div class="form-group"><label>Email</label><input type="email" name="email" required placeholder="user@example.com"></div>
-<div class="form-group"><label>Name</label><input type="text" name="name" required placeholder="Full Name"></div>
-<div class="form-group"><label>Password</label><input type="password" name="password" required placeholder="Password"></div>
-<div class="form-group"><label>Role</label>
-<select name="role">
-{% for role_name in roles %}<option value="{{ role_name }}">{{ role_name|title }}</option>{% endfor %}
-</select></div>
-<button type="submit" class="btn btn-sm" style="margin-bottom:16px">Add</button>
-</form>
-<h3 style="margin-top:24px;color:#f8fafc">All Users</h3>
-<div class="table-wrap">
-<table>
-<tr><th>Email</th><th>Name</th><th>Role</th><th>Created</th><th>Status</th></tr>
-{% for email, u in users.items() %}
-<tr>
-<td>{{ u.email }}</td>
-<td>{{ u.name }}</td>
-<td><span class="badge badge-{{ u.role }}">{{ u.role }}</span></td>
-<td>{{ u.created_at[:10] }}</td>
-<td>{% if u.active %}Active{% else %}Disabled{% endif %}</td>
-</tr>
-{% endfor %}
-</table>
+
+<!-- Create User Form -->
+<div class="card" id="createUserForm" style="display: none;">
+    <div class="card-header">
+        <h4>ایجاد کاربر جدید</h4>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/admin/users/create">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="form-group">
+                    <label for="name">نام:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">ایمیل:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="form-group">
+                    <label for="password">رمز عبور:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="role">نقش:</label>
+                    <select id="role" name="role" required>
+                        {% for role_name, role_info in roles.items() %}
+                        <option value="{{ role_name }}" {% if role_name == 'viewer' %}selected{% endif %}>
+                            {{ role_name }} - {{ role_info.description }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="d-flex" style="gap: 10px;">
+                <button type="submit" class="btn btn-success">ایجاد کاربر</button>
+                <button type="button" onclick="toggleCreateForm()" class="btn btn-secondary">انصراف</button>
+            </div>
+        </form>
+    </div>
 </div>
+
+<!-- Users List -->
+<div class="card">
+    <div class="card-header">
+        <h4>لیست کاربران ({{ users|length }} کاربر)</h4>
+    </div>
+    <div class="card-body">
+        {% if users %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>کاربر</th>
+                        <th>نقش</th>
+                        <th>وضعیت</th>
+                        <th>عضویت</th>
+                        <th>آخرین ورود</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_item in users %}
+                    <tr>
+                        <td>
+                            <strong>{{ user_item.name }}</strong><br>
+                            <small class="text-muted">{{ user_item.email }}</small>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ user_item.role }}">{{ user_item.role }}</span>
+                        </td>
+                        <td>
+                            {% if user_item.is_active %}
+                            <span class="badge badge-success">فعال</span>
+                            {% else %}
+                            <span class="badge badge-danger">غیرفعال</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user_item.created_at.strftime('%Y/%m/%d') if user_item.created_at else 'نامشخص' }}</td>
+                        <td>{{ user_item.last_login.strftime('%Y/%m/%d %H:%M') if user_item.last_login else 'هرگز' }}</td>
+                        <td>
+                            <div class="d-flex" style="gap: 5px;">
+                                {% if user_item.id != user.id %}
+                                <button onclick="editUser('{{ user_item.id }}')" class="btn btn-sm btn-secondary">ویرایش</button>
+                                {% if user_item.is_active %}
+                                <button onclick="toggleUserStatus('{{ user_item.id }}', false)" class="btn btn-sm btn-warning">غیرفعال</button>
+                                {% else %}
+                                <button onclick="toggleUserStatus('{{ user_item.id }}', true)" class="btn btn-sm btn-success">فعال</button>
+                                {% endif %}
+                                <button onclick="resetPassword('{{ user_item.id }}')" class="btn btn-sm btn-info">تغییر رمز</button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            هیچ کاربری یافت نشد.
+        </div>
+        {% endif %}
+    </div>
 </div>
-</div>
+
+<script>
+function toggleCreateForm() {
+    const form = document.getElementById('createUserForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function editUser(userId) {
+    // TODO: Implement user editing
+    alert('ویرایش کاربر: ' + userId);
+}
+
+function toggleUserStatus(userId, activate) {
+    const action = activate ? 'فعال' : 'غیرفعال';
+    if (confirm(`آیا مطمئن هستید که می‌خواهید این کاربر را ${action} کنید؟`)) {
+        // TODO: Implement user status toggle
+        alert(`کاربر ${action} شد: ` + userId);
+    }
+}
+
+function resetPassword(userId) {
+    const newPassword = prompt('رمز عبور جدید را وارد کنید:');
+    if (newPassword && newPassword.length >= 8) {
+        // TODO: Implement password reset
+        alert('رمز عبور تغییر یافت: ' + userId);
+    } else if (newPassword) {
+        alert('رمز عبور باید حداقل 8 کاراکتر باشد.');
+    }
+}
+</script>
 {% endblock %}
