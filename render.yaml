@@ -11,47 +11,11 @@ services:
     numInstances: 1
     domains:
       - login.orcest.ai
-    healthCheckPath: /-/health/live/
+    healthCheckPath: /health
     envVars:
-      - key: AUTHENTIK_SECRET_KEY
+      - key: SSO_SECRET_KEY
         sync: false
-      - key: AUTHENTIK_POSTGRESQL__HOST
-        fromDatabase:
-          name: authentik-db
-          property: host
-      - key: AUTHENTIK_POSTGRESQL__PORT
-        fromDatabase:
-          name: authentik-db
-          property: port
-      - key: AUTHENTIK_POSTGRESQL__USER
-        fromDatabase:
-          name: authentik-db
-          property: user
-      - key: AUTHENTIK_POSTGRESQL__PASSWORD
-        fromDatabase:
-          name: authentik-db
-          property: password
-      - key: AUTHENTIK_POSTGRESQL__NAME
-        fromDatabase:
-          name: authentik-db
-          property: database
-      - key: AUTHENTIK_REDIS__HOST
-        value: "localhost"
-      - key: AUTHENTIK_ERROR_REPORTING__ENABLED
-        value: "false"
-      - key: AUTHENTIK_LOG_LEVEL
-        value: "info"
-      - key: AUTHENTIK_DISABLE_UPDATE_CHECK
-        value: "true"
-      - key: AUTHENTIK_DEFAULT_USER_CHANGE_NAME
-        value: "true"
-      - key: AUTHENTIK_DEFAULT_USER_CHANGE_EMAIL
-        value: "true"
-      - key: AUTHENTIK_DEFAULT_TOKEN_LENGTH
-        value: "128"
-
-databases:
-  - name: authentik-db
-    plan: starter
-    databaseName: authentik
-    user: authentik
+      - key: SSO_ADMIN_EMAIL
+        sync: false
+      - key: SSO_ADMIN_PASSWORD
+        sync: false
