@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Admin — Orcest AI{% endblock %}
+{% block body %}
+<nav class="nav">
+<span class="nav-brand">Orcest AI</span>
+<div class="nav-links">
+<a href="/profile">Profile</a>
+<a href="/admin">Admin</a>
+<a href="/users">Users</a>
+<a href="/applications">Apps</a>
+<a href="/logout">Sign Out</a>
+</div>
+</nav>
+<div class="content">
+<div class="card wide-card">
+<h2>Admin Dashboard</h2>
+<p>Manage the Orcest AI identity system.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:20px">
+<div style="background:#1f2937;padding:20px;border-radius:12px;text-align:center">
+<div style="font-size:2rem;font-weight:800;color:#60a5fa">{{ users|length }}</div>
+<div style="color:#94a3b8;font-size:.85rem">Total Users</div>
+</div>
+<div style="background:#1f2937;padding:20px;border-radius:12px;text-align:center">
+<div style="font-size:2rem;font-weight:800;color:#4ade80">{{ clients|length }}</div>
+<div style="color:#94a3b8;font-size:.85rem">OIDC Clients</div>
+</div>
+<div style="background:#1f2937;padding:20px;border-radius:12px;text-align:center">
+<div style="font-size:2rem;font-weight:800;color:#fbbf24">{{ roles|length }}</div>
+<div style="color:#94a3b8;font-size:.85rem">Roles</div>
+</div>
+</div>
+<h3 style="margin-top:24px;color:#f8fafc">Ecosystem Services</h3>
+<table>
+<tr><th>Service</th><th>URL</th><th>Status</th></tr>
+<tr><td>RainyModel</td><td>rm.orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
+<tr><td>Lamino</td><td>llm.orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
+<tr><td>Maestrist</td><td>agent.orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
+<tr><td>Orcide</td><td>ide.orcest.ai</td><td><span class="badge badge-researcher">Desktop</span></td></tr>
+<tr><td>Orcest AI</td><td>orcest.ai</td><td><span class="badge badge-developer">Active</span></td></tr>
+</table>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Sign In — Orcest AI{% endblock %}
+{% block body %}
+<div class="content">
+<div class="card">
+<h2>Sign in to Orcest AI</h2>
+<p>Access all Orcest ecosystem services with one account.</p>
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+<form method="post" action="/login">
+<div class="form-group">
+<label for="email">Email</label>
+<input type="email" id="email" name="email" required placeholder="you@example.com" autocomplete="email">
+</div>
+<div class="form-group">
+<label for="password">Password</label>
+<input type="password" id="password" name="password" required placeholder="Enter your password" autocomplete="current-password">
+</div>
+<button type="submit" class="btn">Sign In</button>
+</form>
+</div>
+</div>
+{% endblock %}

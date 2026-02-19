@@ -1,3 +1,14 @@
-FROM ghcr.io/goauthentik/server:2024.12
+FROM python:3.11-slim
 
-ENV AUTHENTIK_LISTEN__HTTP=0.0.0.0:${PORT:-9000}
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+COPY templates/ ./templates/
+COPY static/ ./static/
+
+EXPOSE 10000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]

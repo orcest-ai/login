@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Profile — Orcest AI{% endblock %}
+{% block body %}
+<nav class="nav">
+<span class="nav-brand">Orcest AI</span>
+<div class="nav-links">
+<a href="/profile">Profile</a>
+{% if user.role == 'admin' %}<a href="/admin">Admin</a><a href="/users">Users</a><a href="/applications">Apps</a>{% endif %}
+<a href="/logout">Sign Out</a>
+</div>
+</nav>
+<div class="content">
+<div class="card">
+<h2>Your Profile</h2>
+<p>Signed in as <strong>{{ user.email }}</strong></p>
+<table>
+<tr><th>Name</th><td>{{ user.name }}</td></tr>
+<tr><th>Email</th><td>{{ user.email }}</td></tr>
+<tr><th>Role</th><td><span class="badge badge-{{ user.role }}">{{ user.role }}</span></td></tr>
+<tr><th>Member Since</th><td>{{ user.created_at[:10] }}</td></tr>
+</table>
+<br>
+<h3 style="margin-bottom:12px;color:#f8fafc">Available Services</h3>
+<table>
+<tr><th>Service</th><th>URL</th></tr>
+{% set user_services = roles[user.role]['services'] %}
+{% if '*' in user_services or 'rm.orcest.ai' in user_services %}
+<tr><td>RainyModel</td><td><a href="https://rm.orcest.ai" target="_blank">rm.orcest.ai</a></td></tr>
+{% endif %}
+{% if '*' in user_services or 'llm.orcest.ai' in user_services %}
+<tr><td>Lamino</td><td><a href="https://llm.orcest.ai" target="_blank">llm.orcest.ai</a></td></tr>
+{% endif %}
+{% if '*' in user_services or 'agent.orcest.ai' in user_services %}
+<tr><td>Maestrist</td><td><a href="https://agent.orcest.ai" target="_blank">agent.orcest.ai</a></td></tr>
+{% endif %}
+{% if '*' in user_services or 'ide.orcest.ai' in user_services %}
+<tr><td>Orcide</td><td><a href="https://ide.orcest.ai" target="_blank">ide.orcest.ai</a></td></tr>
+{% endif %}
+</table>
+</div>
+</div>
+{% endblock %}
