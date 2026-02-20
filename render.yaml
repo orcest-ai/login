@@ -13,6 +13,7 @@ services:
       - login.orcest.ai
     healthCheckPath: /health
     envVars:
+      - fromGroup: orcest-ai-shared-apis
       - key: SSO_SECRET_KEY
         sync: false
       - key: SSO_ADMIN_EMAIL
