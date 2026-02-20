@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}تحلیل پیشرفته - Orcest AI{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h2>تحلیل پیشرفته کاربران و RainyModel</h2>
+    <form method="post" action="/admin/analytics/rainymodel/sync">
+      <button class="btn btn-success">همگام‌سازی RainyModel</button>
+    </form>
+  </div>
+  <div class="card-body">
+    <p class="text-muted">نمایش آمار مصرف مدل‌های زبانی، توکن‌ها، هزینه تخمینی، تحلیل کیفیت و نمودارهای کلوچه‌ای/میله‌ای/خطی.</p>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-number">{{ analytics.total_cost }}</div><div class="stat-label">هزینه تخمینی کل ($)</div></div>
+  <div class="stat-card"><div class="stat-number">{{ analytics.quality_avg }}</div><div class="stat-label">میانگین کیفیت</div></div>
+  <div class="stat-card"><div class="stat-number">{{ analytics.subsystem_usage|length }}</div><div class="stat-label">زیرسامانه‌های فعال</div></div>
+</div>
+
+<div class="card"><div class="card-body"><canvas id="pieChart" height="120"></canvas></div></div>
+<div class="card"><div class="card-body"><canvas id="barChart" height="120"></canvas></div></div>
+<div class="card"><div class="card-body"><canvas id="lineChart" height="120"></canvas></div></div>
+
+<div class="card">
+  <div class="card-header"><h4>جزئیات آخرین رکوردهای استفاده</h4></div>
+  <div class="card-body">
+    <div class="table-responsive"><table class="table"><thead><tr><th>کاربر</th><th>زیرسامانه</th><th>مدل</th><th>توکن</th><th>هزینه</th><th>کیفیت</th></tr></thead><tbody>
+      {% for row in recent_metrics %}
+      <tr>
+        <td>{{ row.user.email if row.user else '-' }}</td>
+        <td>{{ row.subsystem }}</td>
+        <td>{{ row.model_name or '-' }}</td>
+        <td>{{ row.total_tokens }}</td>
+        <td>{{ row.estimated_cost }}</td>
+        <td>{{ row.quality_score or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const subsystemData = {{ analytics.subsystem_usage | tojson }};
+const modelData = {{ analytics.model_tokens | tojson }};
+
+new Chart(document.getElementById('pieChart'), {
+  type: 'pie',
+  data: {labels: subsystemData.map(x=>x.label), datasets:[{data: subsystemData.map(x=>x.value)}]}
+});
+new Chart(document.getElementById('barChart'), {
+  type: 'bar',
+  data: {labels: modelData.map(x=>x.label), datasets:[{label:'Token', data:modelData.map(x=>x.value)}]}
+});
+new Chart(document.getElementById('lineChart'), {
+  type: 'line',
+  data: {labels: modelData.map(x=>x.label), datasets:[{label:'Token Trend', data:modelData.map(x=>x.value)}]}
+});
+</script>
+{% endblock %}
