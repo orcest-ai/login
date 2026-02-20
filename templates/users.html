@@ -10,142 +10,107 @@
     </div>
 </div>
 
-<!-- Create User Form -->
 <div class="card" id="createUserForm" style="display: none;">
-    <div class="card-header">
-        <h4>ایجاد کاربر جدید</h4>
-    </div>
+    <div class="card-header"><h4>ایجاد کاربر جدید</h4></div>
     <div class="card-body">
         <form method="post" action="/admin/users/create">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <div class="form-group">
-                    <label for="name">نام:</label>
-                    <input type="text" id="name" name="name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="email">ایمیل:</label>
-                    <input type="email" id="email" name="email" required>
-                </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <div class="form-group"><label>نام:</label><input type="text" name="name" required></div>
+                <div class="form-group"><label>ایمیل:</label><input type="email" name="email" required></div>
             </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <div class="form-group"><label>رمز عبور:</label><input type="password" name="password" minlength="8" required></div>
                 <div class="form-group">
-                    <label for="password">رمز عبور:</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="role">نقش:</label>
-                    <select id="role" name="role" required>
+                    <label>نقش:</label>
+                    <select name="role" required>
                         {% for role_name, role_info in roles.items() %}
-                        <option value="{{ role_name }}" {% if role_name == 'viewer' %}selected{% endif %}>
-                            {{ role_name }} - {{ role_info.description }}
-                        </option>
+                        <option value="{{ role_name }}">{{ role_name }} - {{ role_info.description }}</option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
-            
-            <div class="d-flex" style="gap: 10px;">
-                <button type="submit" class="btn btn-success">ایجاد کاربر</button>
-                <button type="button" onclick="toggleCreateForm()" class="btn btn-secondary">انصراف</button>
-            </div>
+            <button type="submit" class="btn btn-success">ایجاد کاربر</button>
         </form>
     </div>
 </div>
 
-<!-- Users List -->
 <div class="card">
-    <div class="card-header">
-        <h4>لیست کاربران ({{ users|length }} کاربر)</h4>
-    </div>
+    <div class="card-header"><h4>لیست کاربران ({{ users|length }} کاربر)</h4></div>
     <div class="card-body">
-        {% if users %}
         <div class="table-responsive">
             <table class="table">
-                <thead>
-                    <tr>
-                        <th>کاربر</th>
-                        <th>نقش</th>
-                        <th>وضعیت</th>
-                        <th>عضویت</th>
-                        <th>آخرین ورود</th>
-                        <th>عملیات</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>کاربر</th><th>نقش</th><th>وضعیت</th><th>آخرین ورود</th><th>عملیات</th></tr></thead>
                 <tbody>
-                    {% for user_item in users %}
+                {% for user_item in users %}
                     <tr>
-                        <td>
-                            <strong>{{ user_item.name }}</strong><br>
-                            <small class="text-muted">{{ user_item.email }}</small>
-                        </td>
-                        <td>
-                            <span class="badge badge-{{ user_item.role }}">{{ user_item.role }}</span>
-                        </td>
-                        <td>
-                            {% if user_item.is_active %}
-                            <span class="badge badge-success">فعال</span>
-                            {% else %}
-                            <span class="badge badge-danger">غیرفعال</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ user_item.created_at.strftime('%Y/%m/%d') if user_item.created_at else 'نامشخص' }}</td>
+                        <td><strong>{{ user_item.name }}</strong><br><small class="text-muted">{{ user_item.email }}</small></td>
+                        <td><span class="badge badge-{{ user_item.role }}">{{ user_item.role }}</span></td>
+                        <td>{% if user_item.is_active %}<span class="badge badge-success">فعال</span>{% else %}<span class="badge badge-danger">غیرفعال</span>{% endif %}</td>
                         <td>{{ user_item.last_login.strftime('%Y/%m/%d %H:%M') if user_item.last_login else 'هرگز' }}</td>
                         <td>
-                            <div class="d-flex" style="gap: 5px;">
-                                {% if user_item.id != user.id %}
-                                <button onclick="editUser('{{ user_item.id }}')" class="btn btn-sm btn-secondary">ویرایش</button>
-                                {% if user_item.is_active %}
-                                <button onclick="toggleUserStatus('{{ user_item.id }}', false)" class="btn btn-sm btn-warning">غیرفعال</button>
-                                {% else %}
-                                <button onclick="toggleUserStatus('{{ user_item.id }}', true)" class="btn btn-sm btn-success">فعال</button>
-                                {% endif %}
-                                <button onclick="resetPassword('{{ user_item.id }}')" class="btn btn-sm btn-info">تغییر رمز</button>
-                                {% endif %}
+                            {% if user_item.id != user.id %}
+                            <div class="d-flex" style="gap:6px;flex-wrap:wrap;">
+                                <button onclick='openEdit({{ user_item.id|tojson }}, {{ user_item.name|tojson }}, {{ user_item.email|tojson }}, {{ user_item.role|tojson }})' class="btn btn-sm btn-secondary">ویرایش</button>
+                                <form method="post" action="/admin/users/{{ user_item.id }}/status" style="display:inline;">
+                                    <input type="hidden" name="is_active" value="{{ 'false' if user_item.is_active else 'true' }}">
+                                    <button class="btn btn-sm {% if user_item.is_active %}btn-warning{% else %}btn-success{% endif %}">{% if user_item.is_active %}غیرفعال{% else %}فعال{% endif %}</button>
+                                </form>
+                                <button onclick='openPassword({{ user_item.id|tojson }})' class="btn btn-sm btn-info">تغییر رمز</button>
+                                <a href="/admin/users/{{ user_item.id }}/activity" class="btn btn-sm">فعالیت</a>
                             </div>
+                            {% else %}<span class="text-muted">اکانت فعلی</span>{% endif %}
                         </td>
                     </tr>
-                    {% endfor %}
+                {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <div class="alert alert-info">
-            هیچ کاربری یافت نشد.
-        </div>
-        {% endif %}
+    </div>
+</div>
+
+<div class="card" id="editCard" style="display:none;">
+    <div class="card-header"><h4>ویرایش کاربر</h4></div>
+    <div class="card-body">
+        <form id="editForm" method="post">
+            <div class="form-group"><label>نام</label><input id="editName" name="name" required></div>
+            <div class="form-group"><label>ایمیل</label><input id="editEmail" type="email" name="email" required></div>
+            <div class="form-group"><label>نقش</label>
+                <select id="editRole" name="role" required>
+                    {% for role_name, role_info in roles.items() %}<option value="{{ role_name }}">{{ role_name }}</option>{% endfor %}
+                </select>
+            </div>
+            <button class="btn btn-success">ذخیره</button>
+        </form>
+    </div>
+</div>
+
+<div class="card" id="passwordCard" style="display:none;">
+    <div class="card-header"><h4>تغییر رمز عبور کاربر</h4></div>
+    <div class="card-body">
+        <form id="passwordForm" method="post">
+            <div class="form-group"><label>رمز جدید</label><input type="password" name="new_password" minlength="8" required></div>
+            <button class="btn btn-success">ثبت رمز جدید</button>
+        </form>
     </div>
 </div>
 
 <script>
-function toggleCreateForm() {
-    const form = document.getElementById('createUserForm');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+function toggleCreateForm(){
+  const form = document.getElementById('createUserForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
-
-function editUser(userId) {
-    // TODO: Implement user editing
-    alert('ویرایش کاربر: ' + userId);
+function openEdit(id,name,email,role){
+  const card=document.getElementById('editCard');
+  card.style.display='block';
+  document.getElementById('editForm').action=`/admin/users/${id}/update`;
+  document.getElementById('editName').value=name;
+  document.getElementById('editEmail').value=email;
+  document.getElementById('editRole').value=role;
 }
-
-function toggleUserStatus(userId, activate) {
-    const action = activate ? 'فعال' : 'غیرفعال';
-    if (confirm(`آیا مطمئن هستید که می‌خواهید این کاربر را ${action} کنید؟`)) {
-        // TODO: Implement user status toggle
-        alert(`کاربر ${action} شد: ` + userId);
-    }
-}
-
-function resetPassword(userId) {
-    const newPassword = prompt('رمز عبور جدید را وارد کنید:');
-    if (newPassword && newPassword.length >= 8) {
-        // TODO: Implement password reset
-        alert('رمز عبور تغییر یافت: ' + userId);
-    } else if (newPassword) {
-        alert('رمز عبور باید حداقل 8 کاراکتر باشد.');
-    }
+function openPassword(id){
+  const card=document.getElementById('passwordCard');
+  card.style.display='block';
+  document.getElementById('passwordForm').action=`/admin/users/${id}/password`;
 }
 </script>
 {% endblock %}

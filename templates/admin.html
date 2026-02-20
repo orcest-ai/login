@@ -40,6 +40,19 @@
             <a href="/admin/access" class="btn btn-success">کنترل دسترسی</a>
             <a href="/admin/applications" class="btn btn-info">اپلیکیشن‌ها</a>
             <a href="/admin/audit" class="btn btn-warning">گزارش حسابرسی</a>
+            <a href="/admin/analytics" class="btn">تحلیل پیشرفته</a>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <div class="card-header"><h4>شاخص‌های هوشمند مصرف</h4></div>
+    <div class="card-body">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-number">{{ analytics.total_cost }}</div><div class="stat-label">هزینه تخمینی کل ($)</div></div>
+            <div class="stat-card"><div class="stat-number">{{ analytics.quality_avg }}</div><div class="stat-label">میانگین امتیاز کیفیت</div></div>
+            <div class="stat-card"><div class="stat-number">{{ analytics.model_tokens|length }}</div><div class="stat-label">مدل‌های در حال مصرف</div></div>
         </div>
     </div>
 </div>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}جزئیات فعالیت کاربر{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header"><h2>جزئیات فعالیت {{ target_user.name }}</h2></div>
+  <div class="card-body">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-number">{{ activity.total_tokens }}</div><div class="stat-label">کل توکن‌ها</div></div>
+      <div class="stat-card"><div class="stat-number">{{ activity.total_cost }}</div><div class="stat-label">هزینه تخمینی ($)</div></div>
+      <div class="stat-card"><div class="stat-number">{{ activity.avg_quality }}</div><div class="stat-label">میانگین کیفیت</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h4>لاگ استفاده زیرسامانه‌ها</h4></div>
+  <div class="card-body">
+    <div class="table-responsive"><table class="table"><thead><tr><th>زمان</th><th>زیرسامانه</th><th>مدل</th><th>توکن</th><th>هزینه</th><th>کیفیت</th></tr></thead><tbody>
+      {% for rec in activity.records %}
+      <tr>
+        <td>{{ rec.created_at.strftime('%Y/%m/%d %H:%M') if rec.created_at else '-' }}</td>
+        <td>{{ rec.subsystem }}</td>
+        <td>{{ rec.model_name or '-' }}</td>
+        <td>{{ rec.total_tokens }}</td>
+        <td>{{ rec.estimated_cost }}</td>
+        <td>{{ rec.quality_score or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h4>لاگ ورود/فعالیت کاربر</h4></div>
+  <div class="card-body">
+    <div class="table-responsive"><table class="table"><thead><tr><th>زمان</th><th>عملیات</th><th>IP</th><th>جزئیات</th></tr></thead><tbody>
+      {% for log in user_logs %}
+      <tr>
+        <td>{{ log.timestamp.strftime('%Y/%m/%d %H:%M') if log.timestamp else '-' }}</td>
+        <td>{{ log.action }}</td>
+        <td>{{ log.ip_address or '-' }}</td>
+        <td><small class="text-muted">{{ log.details or '-' }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+{% endblock %}
