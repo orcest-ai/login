@@ -3,6 +3,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import random
 
 from fastapi import FastAPI, Request, Depends, HTTPException, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -12,12 +13,13 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
 from .database import get_db, init_database
-from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken
+from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric
 from .services import (
     UserService, SessionService, AccessGrantService, AuditService, 
-    JWTService, OIDCService, ROLES, SERVICE_DOMAINS
+    JWTService, OIDCService, ROLES, SERVICE_DOMAINS, AnalyticsService
 )
 
 # Configure logging
@@ -152,7 +154,7 @@ async def login_page(request: Request, db: Session = Depends(get_db)):
     """Login page"""
     user = get_current_user(request, db)
     if user:
-        return RedirectResponse(url="/profile", status_code=302)
+        return RedirectResponse(url="/portal", status_code=302)
     
     error = request.query_params.get("error")
     return templates.TemplateResponse("login.html", {
@@ -173,9 +175,9 @@ async def login_submit(
     user_agent = request.headers.get("User-Agent", "")
     
     # Validate redirect parameter to prevent open redirect
-    redirect_url = request.query_params.get("redirect", "/profile")
+    redirect_url = request.query_params.get("redirect", "/portal")
     if not redirect_url.startswith("/") and not redirect_url.startswith("https://"):
-        redirect_url = "/profile"
+        redirect_url = "/portal"
     
     user = UserService.authenticate_user(db, email, password, ip_address, user_agent)
     if not user:
@@ -240,8 +242,58 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
         "roles": ROLES,
         "active_grants": active_grants,
         "sessions": sessions,
-        "service_domains": SERVICE_DOMAINS
+        "service_domains": SERVICE_DOMAINS,
+        "now": datetime.now(timezone.utc)
     })
+
+
+@app.get("/portal", response_class=HTMLResponse)
+async def portal_page(request: Request, db: Session = Depends(get_db)):
+    """Unified feature portal after login"""
+    user = require_auth(request, db)
+
+    management_links = [
+        {"title": "پروفایل کاربری", "desc": "مشاهده اطلاعات، جلسات و دسترسی‌ها", "url": "/profile", "type": "view"},
+    ]
+
+    if user.role == "admin":
+        management_links.extend([
+            {"title": "داشبورد مدیریت", "desc": "شاخص‌های کلان و فعالیت‌های اخیر", "url": "/admin", "type": "dashboard"},
+            {"title": "مدیریت کاربران", "desc": "ایجاد، ویرایش، نقش‌دهی و فعال/غیرفعال", "url": "/admin/users", "type": "manage"},
+            {"title": "مدیریت جلسات", "desc": "بازبینی و ابطال نشست‌های فعال", "url": "/admin/sessions", "type": "security"},
+            {"title": "کنترل دسترسی", "desc": "اعطای دسترسی به زیرسامانه‌ها", "url": "/admin/access", "type": "access"},
+            {"title": "اپلیکیشن‌های OIDC", "desc": "مدیریت کلاینت‌ها و یکپارچه‌سازی SSO", "url": "/admin/applications", "type": "sso"},
+            {"title": "گزارش حسابرسی", "desc": "لاگ ورود و رویدادهای امنیتی", "url": "/admin/audit", "type": "audit"},
+            {"title": "تحلیل RainyModel", "desc": "توکن، هزینه، کیفیت و نمودارها", "url": "/admin/analytics", "type": "analytics"},
+        ])
+
+    return templates.TemplateResponse("portal.html", {
+        "request": request,
+        "user": user,
+        "links": management_links,
+    })
+
+
+@app.post("/profile/edit")
+async def profile_edit(
+    request: Request,
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+):
+    """Allow user to edit own display name"""
+    user = require_auth(request, db)
+
+    clean_name = name.strip()
+    if not clean_name or len(clean_name) < 2:
+        return RedirectResponse(url="/profile?error=نام معتبر وارد کنید", status_code=302)
+
+    UserService.update_user(db, user.id, name=clean_name)
+    AuditService.log_action(
+        db, user.id, "profile_updated", get_client_ip(request),
+        request.headers.get("User-Agent", ""),
+        details={"field": "name"}
+    )
+    return RedirectResponse(url="/profile?success=پروفایل بروزرسانی شد", status_code=302)
 
 
 # ============================================================================
@@ -266,6 +318,8 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     # Recent audit logs
     recent_logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(10).all()
     
+    analytics = AnalyticsService.get_admin_dashboard_stats(db)
+
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "user": user,
@@ -276,6 +330,7 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         },
         "recent_logs": recent_logs,
         "roles": ROLES,
+        "analytics": analytics,
     })
 
 
@@ -329,6 +384,145 @@ async def admin_create_user(
         return RedirectResponse(url="/admin/users?success=User created successfully", status_code=302)
     except ValueError as e:
         return RedirectResponse(url=f"/admin/users?error={str(e)}", status_code=302)
+
+
+@app.post("/admin/users/{user_id}/update")
+async def admin_update_user(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+    email: str = Form(...),
+    role: str = Form(...),
+):
+    """Update user profile and role (admin only)"""
+    admin_user = require_admin(request, db)
+
+    target_user = UserService.get_user_by_id(db, user_id)
+    if not target_user:
+        return RedirectResponse(url="/admin/users?error=User not found", status_code=302)
+
+    if role not in ROLES:
+        return RedirectResponse(url="/admin/users?error=Invalid role", status_code=302)
+
+    UserService.update_user(db, user_id, name=name, email=email, role=role)
+    AuditService.log_action(
+        db, user_id, "user_updated", get_client_ip(request),
+        request.headers.get("User-Agent", ""),
+        details={"updated_by": admin_user.id, "role": role}
+    )
+
+    return RedirectResponse(url="/admin/users?success=User updated successfully", status_code=302)
+
+
+@app.post("/admin/users/{user_id}/status")
+async def admin_toggle_user_status(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    is_active: bool = Form(...),
+):
+    """Activate/deactivate user (admin only)"""
+    admin_user = require_admin(request, db)
+
+    if admin_user.id == user_id:
+        return RedirectResponse(url="/admin/users?error=Cannot disable own account", status_code=302)
+
+    user = UserService.set_active_status(db, user_id, is_active, admin_user.id)
+    if not user:
+        return RedirectResponse(url="/admin/users?error=User not found", status_code=302)
+
+    if not is_active:
+        SessionService.revoke_user_sessions(db, user_id)
+
+    status_text = "activated" if is_active else "deactivated"
+    return RedirectResponse(url=f"/admin/users?success=User {status_text} successfully", status_code=302)
+
+
+@app.post("/admin/users/{user_id}/password")
+async def admin_reset_user_password(
+    request: Request,
+    user_id: str,
+    db: Session = Depends(get_db),
+    new_password: str = Form(...),
+):
+    """Reset user password (admin only)"""
+    admin_user = require_admin(request, db)
+
+    try:
+        updated = UserService.reset_password(db, user_id, new_password, admin_user.id)
+        if not updated:
+            return RedirectResponse(url="/admin/users?error=User not found", status_code=302)
+    except ValueError as exc:
+        return RedirectResponse(url=f"/admin/users?error={str(exc)}", status_code=302)
+
+    return RedirectResponse(url="/admin/users?success=Password updated successfully", status_code=302)
+
+
+@app.get("/admin/users/{user_id}/activity", response_class=HTMLResponse)
+async def admin_user_activity_page(request: Request, user_id: str, db: Session = Depends(get_db)):
+    """Detailed user activity with usage metrics"""
+    user = require_admin(request, db)
+    target_user = UserService.get_user_by_id(db, user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    activity = AnalyticsService.get_user_activity_details(db, user_id)
+    user_logs = db.query(AuditLog).filter(AuditLog.user_id == user_id).order_by(AuditLog.timestamp.desc()).limit(200).all()
+
+    return templates.TemplateResponse("user_activity.html", {
+        "request": request,
+        "user": user,
+        "target_user": target_user,
+        "activity": activity,
+        "user_logs": user_logs,
+    })
+
+
+@app.get("/admin/analytics", response_class=HTMLResponse)
+async def admin_analytics_page(request: Request, db: Session = Depends(get_db)):
+    """Global analytics and RainyModel integration view"""
+    user = require_admin(request, db)
+
+    analytics = AnalyticsService.get_admin_dashboard_stats(db)
+    recent_metrics = db.query(UsageMetric).join(User).order_by(UsageMetric.created_at.desc()).limit(100).all()
+
+    return templates.TemplateResponse("analytics.html", {
+        "request": request,
+        "user": user,
+        "analytics": analytics,
+        "recent_metrics": recent_metrics,
+    })
+
+
+@app.post("/admin/analytics/rainymodel/sync")
+async def admin_sync_rainymodel(request: Request, db: Session = Depends(get_db)):
+    """Simulate RainyModel metrics sync for dashboard enrichment"""
+    admin_user = require_admin(request, db)
+    users = UserService.list_users(db, limit=200)
+
+    if not users:
+        return RedirectResponse(url="/admin/analytics?error=No users found", status_code=302)
+
+    for target in users:
+        AnalyticsService.create_usage_metric(
+            db,
+            user_id=target.id,
+            subsystem=random.choice(["RainyModel", "Lamino", "Maestrist", "OrcIDE"]),
+            model_name=random.choice(["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet"]),
+            prompt_tokens=random.randint(200, 5000),
+            completion_tokens=random.randint(200, 7000),
+            quality_score=random.randint(60, 98),
+            latency_ms=random.randint(200, 4200),
+            meta={"source": "rainymodel_sync", "synced_by": admin_user.id}
+        )
+
+    AuditService.log_action(
+        db, admin_user.id, "rainymodel_sync",
+        get_client_ip(request), request.headers.get("User-Agent", ""),
+        details={"users_processed": len(users)}
+    )
+    return RedirectResponse(url="/admin/analytics?success=RainyModel sync completed", status_code=302)
 
 
 @app.get("/admin/sessions", response_class=HTMLResponse)
@@ -495,8 +689,7 @@ async def authorize(
         raise HTTPException(status_code=400, detail="Invalid client_id")
     
     # Validate redirect URI
-    import json
-    allowed_uris = json.loads(client.redirect_uris)
+        allowed_uris = json.loads(client.redirect_uris)
     if redirect_uri and redirect_uri not in allowed_uris:
         raise HTTPException(status_code=400, detail="Invalid redirect_uri")
     if not redirect_uri:
@@ -560,7 +753,7 @@ async def authorize_continue(request: Request, db: Session = Depends(get_db)):
     
     oauth2_params = request.session.get("oauth2_params")
     if not oauth2_params:
-        return RedirectResponse(url="/profile", status_code=302)
+        return RedirectResponse(url="/portal", status_code=302)
     
     # Clear stored parameters
     del request.session["oauth2_params"]
@@ -843,6 +1036,30 @@ async def list_roles():
 async def list_services():
     """List available services"""
     return {"services": SERVICE_DOMAINS}
+
+
+@app.get("/api/analytics/users/{user_id}")
+async def api_user_analytics(
+    user_id: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """User-level analytics endpoint for low-code/no-code consumers"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    requester = UserService.get_user_by_email(db, payload.get("sub"))
+    if not requester:
+        raise HTTPException(status_code=404, detail="Requesting user not found")
+
+    if requester.id != user_id and requester.role != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return AnalyticsService.get_user_activity_details(db, user_id)
 
 
 # ============================================================================

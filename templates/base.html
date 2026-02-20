@@ -161,6 +161,24 @@
         .btn-success:hover {
             background: #218838;
         }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            color: #212529;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
         
         .btn-sm {
             padding: 8px 16px;
@@ -402,6 +420,7 @@
             {% if user %}
             <div class="nav">
                 <div class="nav-left">
+                    <a href="/portal">پنل امکانات</a>
                     <a href="/profile">پروفایل</a>
                     {% if user.role == "admin" %}
                     <a href="/admin">داشبورد مدیریت</a>
@@ -410,6 +429,7 @@
                     <a href="/admin/access">کنترل دسترسی</a>
                     <a href="/admin/applications">اپلیکیشن‌ها</a>
                     <a href="/admin/audit">گزارش حسابرسی</a>
+                    <a href="/admin/analytics">تحلیل و RainyModel</a>
                     {% endif %}
                 </div>
                 <a href="/logout" class="logout">خروج</a>

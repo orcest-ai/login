@@ -1,24 +1,23 @@
 import os
 import json
 import secrets
-import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from user_agents import parse as parse_user_agent
 
-from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken
+from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric
 
 logger = logging.getLogger(__name__)
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 
 # JWT Configuration
 SECRET_KEY = os.environ.get("SSO_SECRET_KEY", secrets.token_hex(32))
@@ -75,6 +74,15 @@ ROLES = {
         "services": ["llm.orcest.ai"], 
         "description": "Read-only access to chat"
     },
+}
+
+
+
+MODEL_PRICING = {
+    "gpt-4o": {"input": 0.005, "output": 0.015},
+    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+    "claude-3-5-sonnet": {"input": 0.003, "output": 0.015},
+    "gemini-1.5-pro": {"input": 0.00125, "output": 0.005},
 }
 
 SERVICE_DOMAINS = {
@@ -191,6 +199,45 @@ class UserService:
         
         db.commit()
         db.refresh(user)
+        return user
+
+    @staticmethod
+    def set_active_status(db: Session, user_id: str, is_active: bool, changed_by: str) -> Optional[User]:
+        """Activate/deactivate a user"""
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+
+        user.is_active = is_active
+        db.commit()
+        db.refresh(user)
+
+        AuditService.log_action(
+            db, user.id, "user_status_changed",
+            details={"is_active": is_active, "changed_by": changed_by}
+        )
+
+        return user
+
+    @staticmethod
+    def reset_password(db: Session, user_id: str, new_password: str, changed_by: str) -> Optional[User]:
+        """Reset password for a user"""
+        if len(new_password) < 8:
+            raise ValueError("Password must be at least 8 characters")
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+
+        user.password_hash = UserService.hash_password(new_password)
+        db.commit()
+        db.refresh(user)
+
+        AuditService.log_action(
+            db, user.id, "password_reset",
+            details={"changed_by": changed_by}
+        )
+
         return user
 
 
@@ -381,6 +428,70 @@ class AuditService:
         
         db.add(log_entry)
         db.commit()
+
+
+class AnalyticsService:
+    """Service for usage and RainyModel analytics"""
+
+    @staticmethod
+    def estimate_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
+        pricing = MODEL_PRICING.get(model_name, MODEL_PRICING["gpt-4o-mini"])
+        input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
+        output_cost = (completion_tokens / 1_000_000) * pricing["output"]
+        return round(input_cost + output_cost, 6)
+
+    @staticmethod
+    def create_usage_metric(db: Session, user_id: str, subsystem: str, model_name: str = None,
+                            prompt_tokens: int = 0, completion_tokens: int = 0,
+                            quality_score: int = None, latency_ms: int = None, meta: Dict[str, Any] = None) -> UsageMetric:
+        total_tokens = (prompt_tokens or 0) + (completion_tokens or 0)
+        estimated_cost = AnalyticsService.estimate_cost(model_name or "gpt-4o-mini", prompt_tokens or 0, completion_tokens or 0)
+
+        metric = UsageMetric(
+            user_id=user_id,
+            subsystem=subsystem,
+            model_name=model_name,
+            prompt_tokens=prompt_tokens or 0,
+            completion_tokens=completion_tokens or 0,
+            total_tokens=total_tokens,
+            estimated_cost=str(estimated_cost),
+            quality_score=quality_score,
+            latency_ms=latency_ms,
+            meta=json.dumps(meta) if meta else None
+        )
+        db.add(metric)
+        db.commit()
+        db.refresh(metric)
+        return metric
+
+    @staticmethod
+    def get_admin_dashboard_stats(db: Session) -> Dict[str, Any]:
+        subsystems = db.query(UsageMetric.subsystem, func.count(UsageMetric.id)).group_by(UsageMetric.subsystem).all()
+        models = db.query(UsageMetric.model_name, func.sum(UsageMetric.total_tokens)).group_by(UsageMetric.model_name).all()
+        quality_avg = db.query(func.avg(UsageMetric.quality_score)).scalar() or 0
+        total_cost = sum(float(row.estimated_cost or 0) for row in db.query(UsageMetric).all())
+
+        return {
+            "subsystem_usage": [{"label": s, "value": c} for s, c in subsystems if s],
+            "model_tokens": [{"label": m or "unknown", "value": int(t or 0)} for m, t in models],
+            "quality_avg": round(float(quality_avg), 2),
+            "total_cost": round(total_cost, 4),
+        }
+
+    @staticmethod
+    def get_user_activity_details(db: Session, user_id: str) -> Dict[str, Any]:
+        metrics = db.query(UsageMetric).filter(UsageMetric.user_id == user_id).order_by(UsageMetric.created_at.desc()).limit(100).all()
+
+        total_tokens = sum(m.total_tokens for m in metrics)
+        total_cost = sum(float(m.estimated_cost or 0) for m in metrics)
+        avg_quality = round(sum((m.quality_score or 0) for m in metrics) / len(metrics), 2) if metrics else 0
+
+        return {
+            "total_tokens": total_tokens,
+            "total_cost": round(total_cost, 4),
+            "avg_quality": avg_quality,
+            "records": metrics,
+        }
 
 
 class JWTService:

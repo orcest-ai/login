@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}پنل امکانات - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2>پنل امکانات سامانه login.orcest.ai</h2>
+    <p class="text-muted">دسترسی سریع به امکانات نمایشی، ویرایشی و مدیریتی پس از ورود.</p>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+  {% for item in links %}
+  <div class="card">
+    <div class="card-body">
+      <h4>{{ item.title }}</h4>
+      <p class="text-muted mb-3">{{ item.desc }}</p>
+      <a href="{{ item.url }}" class="btn btn-sm">ورود به بخش</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

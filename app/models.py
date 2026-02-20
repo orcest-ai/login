@@ -23,6 +23,7 @@ class User(Base):
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     access_grants = relationship("AccessGrant", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
+    usage_metrics = relationship("UsageMetric", back_populates="user", cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -136,4 +137,28 @@ class RefreshToken(Base):
     __table_args__ = (
         Index('ix_refresh_tokens_user', 'user_id'),
         Index('ix_refresh_tokens_expires', 'expires_at'),
+    )
+
+
+class UsageMetric(Base):
+    __tablename__ = "usage_metrics"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    subsystem = Column(String, nullable=False)
+    model_name = Column(String, nullable=True)
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    estimated_cost = Column(String, default="0")
+    quality_score = Column(Integer, nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    meta = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="usage_metrics")
+
+    __table_args__ = (
+        Index('ix_usage_metrics_user_created', 'user_id', 'created_at'),
+        Index('ix_usage_metrics_subsystem', 'subsystem'),
     )
