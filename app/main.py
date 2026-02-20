@@ -64,7 +64,11 @@ async def startup_event():
         try:
             # Create admin user if not exists
             admin_email = os.environ.get("SSO_ADMIN_EMAIL", "admin@orcest.ai")
-            admin_password = os.environ.get("SSO_ADMIN_PASSWORD", "X69IcnO1EKubqWrQdxHqzL0CyqfOpJPg")
+            admin_password = os.environ.get("SSO_ADMIN_PASSWORD")
+            if not admin_password:
+                import secrets
+                admin_password = secrets.token_urlsafe(32)
+                logger.warning("SSO_ADMIN_PASSWORD not set! Generated random password. Set it via environment variable.")
             
             existing_admin = UserService.get_user_by_email(db, admin_email)
             if not existing_admin:
