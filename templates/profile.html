@@ -4,20 +4,28 @@
 
 {% block content %}
 <div class="card">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h2>پروفایل کاربری</h2>
+        <div class="d-flex" style="gap:8px;">
+            <a href="/portal" class="btn btn-secondary btn-sm">پنل امکانات</a>
+            {% if user.role == 'admin' %}
+            <a href="/admin" class="btn btn-sm">مدیریت سامانه</a>
+            {% endif %}
+        </div>
     </div>
     <div class="card-body">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
             <div>
                 <h4>اطلاعات کاربری</h4>
-                
-                <div class="form-group">
-                    <label>نام:</label>
-                    <p><strong>{{ user.name }}</strong></p>
-                </div>
+                <form method="post" action="/profile/edit">
+                    <div class="form-group">
+                        <label>نام:</label>
+                        <input type="text" name="name" value="{{ user.name }}" minlength="2" required>
+                    </div>
+                    <button class="btn btn-success btn-sm">ذخیره نام</button>
+                </form>
 
-                <div class="form-group">
+                <div class="form-group" style="margin-top:15px;">
                     <label>ایمیل:</label>
                     <p><strong>{{ user.email }}</strong></p>
                 </div>
@@ -40,55 +48,28 @@
                     <p>{{ user.last_login.strftime('%Y/%m/%d %H:%M') if user.last_login else 'هرگز' }}</p>
                 </div>
             </div>
-            
+
             <div>
                 <h4>سرویس‌های در دسترس</h4>
-                
                 {% set user_services = roles[user.role]['services'] %}
                 <div class="table-responsive">
                     <table class="table">
-                        <thead>
-                            <tr>
-                                <th>سرویس</th>
-                                <th>آدرس</th>
-                                <th>وضعیت</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>سرویس</th><th>آدرس</th><th>وضعیت</th></tr></thead>
                         <tbody>
                             {% if '*' in user_services or 'rm.orcest.ai' in user_services %}
-                            <tr>
-                                <td><strong>RainyModel</strong><br><small>مسیریابی LLM</small></td>
-                                <td><a href="https://rm.orcest.ai" target="_blank">rm.orcest.ai</a></td>
-                                <td><span class="badge badge-success">فعال</span></td>
-                            </tr>
+                            <tr><td><strong>RainyModel</strong><br><small>مسیریابی LLM</small></td><td><a href="https://rm.orcest.ai" target="_blank">rm.orcest.ai</a></td><td><span class="badge badge-success">فعال</span></td></tr>
                             {% endif %}
                             {% if '*' in user_services or 'llm.orcest.ai' in user_services %}
-                            <tr>
-                                <td><strong>Lamino</strong><br><small>رابط چت</small></td>
-                                <td><a href="https://llm.orcest.ai" target="_blank">llm.orcest.ai</a></td>
-                                <td><span class="badge badge-success">فعال</span></td>
-                            </tr>
+                            <tr><td><strong>Lamino</strong><br><small>رابط چت</small></td><td><a href="https://llm.orcest.ai" target="_blank">llm.orcest.ai</a></td><td><span class="badge badge-success">فعال</span></td></tr>
                             {% endif %}
                             {% if '*' in user_services or 'agent.orcest.ai' in user_services %}
-                            <tr>
-                                <td><strong>Maestrist</strong><br><small>پلتفرم ایجنت</small></td>
-                                <td><a href="https://agent.orcest.ai" target="_blank">agent.orcest.ai</a></td>
-                                <td><span class="badge badge-success">فعال</span></td>
-                            </tr>
+                            <tr><td><strong>Maestrist</strong><br><small>پلتفرم ایجنت</small></td><td><a href="https://agent.orcest.ai" target="_blank">agent.orcest.ai</a></td><td><span class="badge badge-success">فعال</span></td></tr>
                             {% endif %}
                             {% if '*' in user_services or 'ide.orcest.ai' in user_services %}
-                            <tr>
-                                <td><strong>Orcide</strong><br><small>IDE وب</small></td>
-                                <td><a href="https://ide.orcest.ai" target="_blank">ide.orcest.ai</a></td>
-                                <td><span class="badge badge-success">فعال</span></td>
-                            </tr>
+                            <tr><td><strong>Orcide</strong><br><small>IDE وب</small></td><td><a href="https://ide.orcest.ai" target="_blank">ide.orcest.ai</a></td><td><span class="badge badge-success">فعال</span></td></tr>
                             {% endif %}
                             {% if '*' in user_services or 'orcest.ai' in user_services %}
-                            <tr>
-                                <td><strong>Orcest Core</strong><br><small>API اصلی</small></td>
-                                <td><a href="https://orcest.ai" target="_blank">orcest.ai</a></td>
-                                <td><span class="badge badge-success">فعال</span></td>
-                            </tr>
+                            <tr><td><strong>Orcest Core</strong><br><small>API اصلی</small></td><td><a href="https://orcest.ai" target="_blank">orcest.ai</a></td><td><span class="badge badge-success">فعال</span></td></tr>
                             {% endif %}
                         </tbody>
                     </table>
@@ -100,31 +81,18 @@
 
 {% if active_grants %}
 <div class="card">
-    <div class="card-header">
-        <h4>دسترسی‌های فعال</h4>
-    </div>
+    <div class="card-header"><h4>دسترسی‌های فعال</h4></div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table">
-                <thead>
-                    <tr>
-                        <th>سرویس</th>
-                        <th>تاریخ اعطا</th>
-                        <th>انقضا</th>
-                        <th>وضعیت</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>سرویس</th><th>تاریخ اعطا</th><th>انقضا</th><th>وضعیت</th></tr></thead>
                 <tbody>
                     {% for grant in active_grants %}
                     <tr>
-                        <td>
-                            <strong>{{ grant.service_name }}</strong><br>
-                            <small class="text-muted">{{ service_domains.get(grant.service_name, 'نامشخص') }}</small>
-                        </td>
+                        <td><strong>{{ grant.service_name }}</strong><br><small class="text-muted">{{ service_domains.get(grant.service_name, 'نامشخص') }}</small></td>
                         <td>{{ grant.granted_at.strftime('%Y/%m/%d') }}</td>
                         <td>{{ grant.expires_at.strftime('%Y/%m/%d') }}</td>
                         <td>
-                            {% set now = moment.now() %}
                             {% set days_left = (grant.expires_at - now).days if grant.expires_at > now else 0 %}
                             {% if days_left > 7 %}
                             <span class="badge badge-success">فعال</span>
@@ -145,30 +113,15 @@
 
 {% if sessions %}
 <div class="card">
-    <div class="card-header">
-        <h4>جلسات فعال</h4>
-    </div>
+    <div class="card-header"><h4>جلسات فعال</h4></div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table">
-                <thead>
-                    <tr>
-                        <th>دستگاه</th>
-                        <th>آدرس IP</th>
-                        <th>مکان</th>
-                        <th>ایجاد شده</th>
-                        <th>آخرین فعالیت</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>دستگاه</th><th>آدرس IP</th><th>مکان</th><th>ایجاد شده</th><th>آخرین فعالیت</th></tr></thead>
                 <tbody>
                     {% for session in sessions %}
                     <tr>
-                        <td>
-                            <strong>{{ session.device_info or 'نامشخص' }}</strong>
-                            {% if session.token == request.session.get('session_token') %}
-                            <br><small class="badge badge-info">جلسه فعلی</small>
-                            {% endif %}
-                        </td>
+                        <td><strong>{{ session.device_info or 'نامشخص' }}</strong>{% if session.token == request.session.get('session_token') %}<br><small class="badge badge-info">جلسه فعلی</small>{% endif %}</td>
                         <td>{{ session.ip_address or 'نامشخص' }}</td>
                         <td>{{ session.location or 'نامشخص' }}</td>
                         <td>{{ session.created_at.strftime('%Y/%m/%d %H:%M') }}</td>

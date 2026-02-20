@@ -154,7 +154,7 @@ async def login_page(request: Request, db: Session = Depends(get_db)):
     """Login page"""
     user = get_current_user(request, db)
     if user:
-        return RedirectResponse(url="/profile", status_code=302)
+        return RedirectResponse(url="/portal", status_code=302)
     
     error = request.query_params.get("error")
     return templates.TemplateResponse("login.html", {
@@ -175,9 +175,9 @@ async def login_submit(
     user_agent = request.headers.get("User-Agent", "")
     
     # Validate redirect parameter to prevent open redirect
-    redirect_url = request.query_params.get("redirect", "/profile")
+    redirect_url = request.query_params.get("redirect", "/portal")
     if not redirect_url.startswith("/") and not redirect_url.startswith("https://"):
-        redirect_url = "/profile"
+        redirect_url = "/portal"
     
     user = UserService.authenticate_user(db, email, password, ip_address, user_agent)
     if not user:
@@ -242,8 +242,58 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
         "roles": ROLES,
         "active_grants": active_grants,
         "sessions": sessions,
-        "service_domains": SERVICE_DOMAINS
+        "service_domains": SERVICE_DOMAINS,
+        "now": datetime.now(timezone.utc)
     })
+
+
+@app.get("/portal", response_class=HTMLResponse)
+async def portal_page(request: Request, db: Session = Depends(get_db)):
+    """Unified feature portal after login"""
+    user = require_auth(request, db)
+
+    management_links = [
+        {"title": "پروفایل کاربری", "desc": "مشاهده اطلاعات، جلسات و دسترسی‌ها", "url": "/profile", "type": "view"},
+    ]
+
+    if user.role == "admin":
+        management_links.extend([
+            {"title": "داشبورد مدیریت", "desc": "شاخص‌های کلان و فعالیت‌های اخیر", "url": "/admin", "type": "dashboard"},
+            {"title": "مدیریت کاربران", "desc": "ایجاد، ویرایش، نقش‌دهی و فعال/غیرفعال", "url": "/admin/users", "type": "manage"},
+            {"title": "مدیریت جلسات", "desc": "بازبینی و ابطال نشست‌های فعال", "url": "/admin/sessions", "type": "security"},
+            {"title": "کنترل دسترسی", "desc": "اعطای دسترسی به زیرسامانه‌ها", "url": "/admin/access", "type": "access"},
+            {"title": "اپلیکیشن‌های OIDC", "desc": "مدیریت کلاینت‌ها و یکپارچه‌سازی SSO", "url": "/admin/applications", "type": "sso"},
+            {"title": "گزارش حسابرسی", "desc": "لاگ ورود و رویدادهای امنیتی", "url": "/admin/audit", "type": "audit"},
+            {"title": "تحلیل RainyModel", "desc": "توکن، هزینه، کیفیت و نمودارها", "url": "/admin/analytics", "type": "analytics"},
+        ])
+
+    return templates.TemplateResponse("portal.html", {
+        "request": request,
+        "user": user,
+        "links": management_links,
+    })
+
+
+@app.post("/profile/edit")
+async def profile_edit(
+    request: Request,
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+):
+    """Allow user to edit own display name"""
+    user = require_auth(request, db)
+
+    clean_name = name.strip()
+    if not clean_name or len(clean_name) < 2:
+        return RedirectResponse(url="/profile?error=نام معتبر وارد کنید", status_code=302)
+
+    UserService.update_user(db, user.id, name=clean_name)
+    AuditService.log_action(
+        db, user.id, "profile_updated", get_client_ip(request),
+        request.headers.get("User-Agent", ""),
+        details={"field": "name"}
+    )
+    return RedirectResponse(url="/profile?success=پروفایل بروزرسانی شد", status_code=302)
 
 
 # ============================================================================
@@ -703,7 +753,7 @@ async def authorize_continue(request: Request, db: Session = Depends(get_db)):
     
     oauth2_params = request.session.get("oauth2_params")
     if not oauth2_params:
-        return RedirectResponse(url="/profile", status_code=302)
+        return RedirectResponse(url="/portal", status_code=302)
     
     # Clear stored parameters
     del request.session["oauth2_params"]

@@ -1,7 +1,6 @@
 import os
 import json
 import secrets
-import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
@@ -18,7 +17,7 @@ from .models import User, Session as UserSession, AccessGrant, OIDCClient, Audit
 logger = logging.getLogger(__name__)
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 
 # JWT Configuration
 SECRET_KEY = os.environ.get("SSO_SECRET_KEY", secrets.token_hex(32))
