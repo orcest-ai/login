@@ -24,6 +24,7 @@ class User(Base):
     access_grants = relationship("AccessGrant", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     usage_metrics = relationship("UsageMetric", back_populates="user", cascade="all, delete-orphan")
+    preferences = relationship("UserPreference", back_populates="user", cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -137,6 +138,22 @@ class RefreshToken(Base):
     __table_args__ = (
         Index('ix_refresh_tokens_user', 'user_id'),
         Index('ix_refresh_tokens_expires', 'expires_at'),
+    )
+
+
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    key = Column(String, nullable=False)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="preferences")
+
+    __table_args__ = (
+        Index('ix_user_preferences_user_key', 'user_id', 'key', unique=True),
     )
 
 

@@ -87,10 +87,12 @@ MODEL_PRICING = {
 
 SERVICE_DOMAINS = {
     "lamino": "llm.orcest.ai",
-    "maestrist": "agent.orcest.ai", 
+    "maestrist": "agent.orcest.ai",
     "orcide": "ide.orcest.ai",
     "orcest": "orcest.ai",
-    "rainymodel": "rm.orcest.ai"
+    "rainymodel": "rm.orcest.ai",
+    "status": "status.orcest.ai",
+    "ollamafreeapi": "ollamafreeapi.orcest.ai",
 }
 
 
@@ -578,6 +580,16 @@ class OIDCService:
                 "client_id": "orcest",
                 "service_name": "Orcest AI",
                 "redirect_uris": ["https://orcest.ai/auth/callback"]
+            },
+            {
+                "client_id": "status",
+                "service_name": "Status Monitor",
+                "redirect_uris": ["https://status.orcest.ai/auth/callback"]
+            },
+            {
+                "client_id": "ollamafreeapi",
+                "service_name": "OllamaFreeAPI",
+                "redirect_uris": ["https://ollamafreeapi.orcest.ai/auth/callback"]
             }
         ]
         

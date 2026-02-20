@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -16,7 +17,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from .database import get_db, init_database
-from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric
+from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric, UserPreference
 from .services import (
     UserService, SessionService, AccessGrantService, AuditService, 
     JWTService, OIDCService, ROLES, SERVICE_DOMAINS, AnalyticsService
@@ -689,7 +690,7 @@ async def authorize(
         raise HTTPException(status_code=400, detail="Invalid client_id")
     
     # Validate redirect URI
-        allowed_uris = json.loads(client.redirect_uris)
+    allowed_uris = json.loads(client.redirect_uris)
     if redirect_uri and redirect_uri not in allowed_uris:
         raise HTTPException(status_code=400, detail="Invalid redirect_uri")
     if not redirect_uri:
@@ -923,13 +924,18 @@ async def userinfo(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # Load preferences for personalization
+    prefs = db.query(UserPreference).filter(UserPreference.user_id == user.id).all()
+
     return {
         "sub": user.email,
         "name": user.name,
         "email": user.email,
         "email_verified": True,
         "role": user.role,
+        "user_id": user.id,
         "aud": payload.get("aud"),
+        "preferences": {p.key: json.loads(p.value) if p.value.startswith(("{", "[")) else p.value for p in prefs},
     }
 
 
@@ -1060,6 +1066,120 @@ async def api_user_analytics(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return AnalyticsService.get_user_activity_details(db, user_id)
+
+
+# ============================================================================
+# USER PREFERENCES & PERSONALIZATION ENDPOINTS
+# ============================================================================
+
+@app.get("/api/user/preferences")
+async def get_user_preferences(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Get all preferences for the authenticated user"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prefs = db.query(UserPreference).filter(UserPreference.user_id == user.id).all()
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "preferences": {p.key: json.loads(p.value) if p.value.startswith(("{", "[")) else p.value for p in prefs}
+    }
+
+
+@app.put("/api/user/preferences")
+async def set_user_preferences(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Set preferences for the authenticated user"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    body = await request.json()
+    preferences = body.get("preferences", {})
+
+    for key, value in preferences.items():
+        val_str = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+        existing = db.query(UserPreference).filter(
+            and_(UserPreference.user_id == user.id, UserPreference.key == key)
+        ).first()
+        if existing:
+            existing.value = val_str
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(UserPreference(user_id=user.id, key=key, value=val_str))
+
+    db.commit()
+
+    AuditService.log_action(
+        db, user.id, "preferences_updated", get_client_ip(request),
+        request.headers.get("User-Agent", ""),
+        details={"keys": list(preferences.keys())}
+    )
+
+    return {"success": True, "updated_keys": list(preferences.keys())}
+
+
+@app.get("/api/user/profile")
+async def get_user_profile(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Get full user profile with preferences and access grants for personalization"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prefs = db.query(UserPreference).filter(UserPreference.user_id == user.id).all()
+    grants = AccessGrantService.list_user_grants(db, user.id)
+    active_grants = [
+        {"service": g.service_name, "expires_at": g.expires_at.isoformat()}
+        for g in grants if g.expires_at > datetime.now(timezone.utc)
+    ]
+
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "is_active": user.is_active,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login": user.last_login.isoformat() if user.last_login else None,
+        "preferences": {p.key: json.loads(p.value) if p.value.startswith(("{", "[")) else p.value for p in prefs},
+        "active_grants": active_grants,
+        "allowed_services": [g.service_name for g in grants if g.expires_at > datetime.now(timezone.utc)],
+    }
 
 
 # ============================================================================
