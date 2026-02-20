@@ -509,7 +509,7 @@ async def admin_sync_rainymodel(request: Request, db: Session = Depends(get_db))
             db,
             user_id=target.id,
             subsystem=random.choice(["RainyModel", "Lamino", "Maestrist", "OrcIDE"]),
-            model_name=random.choice(["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet"]),
+            model_name=random.choice(["rainymodel/auto", "rainymodel/chat", "rainymodel/code", "rainymodel/agent", "rainymodel/document"]),
             prompt_tokens=random.randint(200, 5000),
             completion_tokens=random.randint(200, 7000),
             quality_score=random.randint(60, 98),
