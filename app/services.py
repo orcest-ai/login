@@ -12,7 +12,11 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from user_agents import parse as parse_user_agent
 
-from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric
+from .models import (
+    User, Session as UserSession, AccessGrant, OIDCClient, AuditLog,
+    AuthorizationCode, RefreshToken, UsageMetric, Group, GroupMembership,
+    Workspace, WorkspaceMembership,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -634,5 +638,528 @@ class OIDCService:
         if auth_code:
             auth_code.used = True
             db.commit()
-            
+
         return auth_code
+
+
+class GroupService:
+    """Service for group and group membership management"""
+
+    @staticmethod
+    def create_group(db: Session, name: str, description: str = None, permissions: Dict[str, Any] = None) -> Group:
+        """Create a new group"""
+        existing = db.query(Group).filter(Group.name == name).first()
+        if existing:
+            raise ValueError(f"Group with name '{name}' already exists")
+
+        group = Group(
+            name=name,
+            description=description,
+            permissions=json.dumps(permissions) if permissions else None,
+        )
+        db.add(group)
+        db.commit()
+        db.refresh(group)
+        logger.info(f"Group created: {name}")
+        return group
+
+    @staticmethod
+    def get_group(db: Session, group_id: str) -> Optional[Group]:
+        """Get a group by ID"""
+        return db.query(Group).filter(Group.id == group_id).first()
+
+    @staticmethod
+    def list_groups(db: Session) -> List[Group]:
+        """List all groups"""
+        return db.query(Group).order_by(Group.name).all()
+
+    @staticmethod
+    def update_group(db: Session, group_id: str, **kwargs) -> Optional[Group]:
+        """Update group fields"""
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            return None
+        for key, value in kwargs.items():
+            if key == "permissions" and isinstance(value, dict):
+                setattr(group, key, json.dumps(value))
+            elif hasattr(group, key):
+                setattr(group, key, value)
+        db.commit()
+        db.refresh(group)
+        return group
+
+    @staticmethod
+    def add_member(db: Session, group_id: str, user_id: str) -> GroupMembership:
+        """Add a user to a group"""
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            raise ValueError("Group not found")
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise ValueError("User not found")
+
+        existing = db.query(GroupMembership).filter(
+            and_(GroupMembership.group_id == group_id, GroupMembership.user_id == user_id)
+        ).first()
+        if existing:
+            raise ValueError("User is already a member of this group")
+
+        membership = GroupMembership(user_id=user_id, group_id=group_id)
+        db.add(membership)
+        db.commit()
+        db.refresh(membership)
+        return membership
+
+    @staticmethod
+    def remove_member(db: Session, group_id: str, user_id: str) -> bool:
+        """Remove a user from a group"""
+        count = db.query(GroupMembership).filter(
+            and_(GroupMembership.group_id == group_id, GroupMembership.user_id == user_id)
+        ).delete()
+        db.commit()
+        return count > 0
+
+    @staticmethod
+    def get_user_groups(db: Session, user_id: str) -> List[Group]:
+        """Get all groups a user belongs to"""
+        memberships = db.query(GroupMembership).filter(GroupMembership.user_id == user_id).all()
+        group_ids = [m.group_id for m in memberships]
+        if not group_ids:
+            return []
+        return db.query(Group).filter(Group.id.in_(group_ids)).all()
+
+    @staticmethod
+    def get_group_members(db: Session, group_id: str) -> List[User]:
+        """Get all users in a group"""
+        memberships = db.query(GroupMembership).filter(GroupMembership.group_id == group_id).all()
+        user_ids = [m.user_id for m in memberships]
+        if not user_ids:
+            return []
+        return db.query(User).filter(User.id.in_(user_ids)).all()
+
+    @staticmethod
+    def manage_group_membership(db: Session, group_id: str, user_id: str, action: str) -> bool:
+        """Manage group membership: 'add' or 'remove' a user from a group"""
+        if action == "add":
+            try:
+                GroupService.add_member(db, group_id, user_id)
+                return True
+            except ValueError:
+                return False
+        elif action == "remove":
+            return GroupService.remove_member(db, group_id, user_id)
+        else:
+            raise ValueError(f"Invalid action: {action}. Must be 'add' or 'remove'.")
+
+
+class SCIMService:
+    """Service for SCIM 2.0 user provisioning (Authentik-compatible)"""
+
+    @staticmethod
+    def get_users(db: Session, filter_query: str = None, start_index: int = 1, count: int = 100) -> Dict[str, Any]:
+        """List users in SCIM format with optional filtering"""
+        query = db.query(User)
+
+        # Basic SCIM filter support: userName eq "value"
+        if filter_query:
+            filter_query = filter_query.strip()
+            if filter_query.startswith("userName eq "):
+                email_value = filter_query.split("userName eq ", 1)[1].strip().strip('"').strip("'")
+                query = query.filter(User.email == email_value)
+            elif filter_query.startswith("displayName eq "):
+                name_value = filter_query.split("displayName eq ", 1)[1].strip().strip('"').strip("'")
+                query = query.filter(User.name == name_value)
+
+        total = query.count()
+        # SCIM uses 1-based indexing
+        offset = max(start_index - 1, 0)
+        users = query.offset(offset).limit(count).all()
+
+        return {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+            "totalResults": total,
+            "startIndex": start_index,
+            "itemsPerPage": count,
+            "Resources": [SCIMService._user_to_scim(u) for u in users],
+        }
+
+    @staticmethod
+    def create_user(db: Session, scim_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a user from a SCIM payload"""
+        # Extract fields from SCIM schema
+        user_name = scim_data.get("userName", "")
+        display_name = scim_data.get("displayName", "")
+        if not display_name:
+            name_obj = scim_data.get("name", {})
+            display_name = f"{name_obj.get('givenName', '')} {name_obj.get('familyName', '')}".strip()
+        if not display_name:
+            display_name = user_name
+
+        active = scim_data.get("active", True)
+
+        # Extract password or generate one
+        password = scim_data.get("password", secrets.token_urlsafe(16))
+
+        # Determine role from groups or default to viewer
+        role = "viewer"
+        groups = scim_data.get("groups", [])
+        for g in groups:
+            g_display = g.get("display", "").lower()
+            if g_display in ROLES:
+                role = g_display
+                break
+
+        # Check for existing user
+        existing = db.query(User).filter(User.email == user_name).first()
+        if existing:
+            raise ValueError(f"User with email {user_name} already exists")
+
+        user = User(
+            email=user_name,
+            name=display_name,
+            password_hash=pwd_context.hash(password),
+            role=role,
+            is_active=active,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info(f"SCIM user created: {user_name}")
+        return SCIMService._user_to_scim(user)
+
+    @staticmethod
+    def update_user(db: Session, user_id: str, scim_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update a user from a SCIM payload"""
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+
+        if "userName" in scim_data:
+            user.email = scim_data["userName"]
+        if "displayName" in scim_data:
+            user.name = scim_data["displayName"]
+        elif "name" in scim_data:
+            name_obj = scim_data["name"]
+            full_name = f"{name_obj.get('givenName', '')} {name_obj.get('familyName', '')}".strip()
+            if full_name:
+                user.name = full_name
+        if "active" in scim_data:
+            user.is_active = scim_data["active"]
+        if "password" in scim_data:
+            user.password_hash = pwd_context.hash(scim_data["password"])
+
+        # Update role from groups if provided
+        groups = scim_data.get("groups", [])
+        for g in groups:
+            g_display = g.get("display", "").lower()
+            if g_display in ROLES:
+                user.role = g_display
+                break
+
+        db.commit()
+        db.refresh(user)
+        logger.info(f"SCIM user updated: {user.email}")
+        return SCIMService._user_to_scim(user)
+
+    @staticmethod
+    def delete_user(db: Session, user_id: str) -> bool:
+        """Deactivate a user via SCIM (soft delete)"""
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        user.is_active = False
+        db.commit()
+        logger.info(f"SCIM user deactivated: {user.email}")
+        return True
+
+    @staticmethod
+    def get_user(db: Session, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single user in SCIM format"""
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+        return SCIMService._user_to_scim(user)
+
+    @staticmethod
+    def _user_to_scim(user: User) -> Dict[str, Any]:
+        """Convert a User model to SCIM 2.0 representation"""
+        # Split name for SCIM name object
+        name_parts = (user.name or "").split(" ", 1)
+        given_name = name_parts[0] if name_parts else ""
+        family_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        return {
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": user.id,
+            "userName": user.email,
+            "name": {
+                "givenName": given_name,
+                "familyName": family_name,
+                "formatted": user.name,
+            },
+            "displayName": user.name,
+            "active": user.is_active,
+            "emails": [
+                {"value": user.email, "type": "work", "primary": True}
+            ],
+            "groups": [
+                {"value": user.role, "display": user.role}
+            ],
+            "meta": {
+                "resourceType": "User",
+                "created": user.created_at.isoformat() if user.created_at else None,
+                "lastModified": user.last_login.isoformat() if user.last_login else (user.created_at.isoformat() if user.created_at else None),
+                "location": f"/scim/v2/Users/{user.id}",
+            },
+        }
+
+    @staticmethod
+    def get_groups(db: Session, start_index: int = 1, count: int = 100) -> Dict[str, Any]:
+        """List groups in SCIM format"""
+        query = db.query(Group)
+        total = query.count()
+        offset = max(start_index - 1, 0)
+        groups = query.offset(offset).limit(count).all()
+
+        resources = []
+        for group in groups:
+            members = GroupService.get_group_members(db, group.id)
+            resources.append(SCIMService._group_to_scim(group, members))
+
+        return {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+            "totalResults": total,
+            "startIndex": start_index,
+            "itemsPerPage": count,
+            "Resources": resources,
+        }
+
+    @staticmethod
+    def create_group(db: Session, scim_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a group from SCIM payload"""
+        display_name = scim_data.get("displayName", "")
+        if not display_name:
+            raise ValueError("displayName is required")
+
+        group = GroupService.create_group(db, name=display_name)
+
+        # Add members if provided
+        members = scim_data.get("members", [])
+        for member in members:
+            member_id = member.get("value")
+            if member_id:
+                try:
+                    GroupService.add_member(db, group.id, member_id)
+                except ValueError:
+                    pass  # Skip invalid or duplicate members
+
+        group_members = GroupService.get_group_members(db, group.id)
+        return SCIMService._group_to_scim(group, group_members)
+
+    @staticmethod
+    def _group_to_scim(group: Group, members: List[User] = None) -> Dict[str, Any]:
+        """Convert a Group model to SCIM 2.0 representation"""
+        scim_members = []
+        if members:
+            for m in members:
+                scim_members.append({
+                    "value": m.id,
+                    "display": m.name,
+                    "$ref": f"/scim/v2/Users/{m.id}",
+                })
+
+        return {
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "id": group.id,
+            "displayName": group.name,
+            "members": scim_members,
+            "meta": {
+                "resourceType": "Group",
+                "created": group.created_at.isoformat() if group.created_at else None,
+                "location": f"/scim/v2/Groups/{group.id}",
+            },
+        }
+
+    @staticmethod
+    def get_service_provider_config() -> Dict[str, Any]:
+        """Return SCIM ServiceProviderConfig"""
+        return {
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
+            "documentationUri": "https://login.orcest.ai/docs/scim",
+            "patch": {"supported": True},
+            "bulk": {"supported": False, "maxOperations": 0, "maxPayloadSize": 0},
+            "filter": {"supported": True, "maxResults": 200},
+            "changePassword": {"supported": True},
+            "sort": {"supported": False},
+            "etag": {"supported": False},
+            "authenticationSchemes": [
+                {
+                    "type": "oauthbearertoken",
+                    "name": "OAuth Bearer Token",
+                    "description": "Authentication scheme using the OAuth Bearer Token Standard",
+                    "specUri": "https://www.rfc-editor.org/info/rfc6750",
+                    "primary": True,
+                }
+            ],
+        }
+
+
+class WorkspaceService:
+    """Service for multi-workspace management"""
+
+    @staticmethod
+    def create_workspace(db: Session, name: str, slug: str, owner_id: str,
+                         description: str = None, settings: Dict[str, Any] = None) -> Workspace:
+        """Create a new workspace"""
+        existing = db.query(Workspace).filter(Workspace.slug == slug).first()
+        if existing:
+            raise ValueError(f"Workspace with slug '{slug}' already exists")
+
+        owner = db.query(User).filter(User.id == owner_id).first()
+        if not owner:
+            raise ValueError("Owner user not found")
+
+        workspace = Workspace(
+            name=name,
+            slug=slug,
+            description=description,
+            owner_id=owner_id,
+            settings=json.dumps(settings) if settings else None,
+        )
+        db.add(workspace)
+        db.commit()
+        db.refresh(workspace)
+
+        # Auto-add owner as admin member
+        membership = WorkspaceMembership(
+            workspace_id=workspace.id,
+            user_id=owner_id,
+            role="admin",
+        )
+        db.add(membership)
+        db.commit()
+
+        logger.info(f"Workspace created: {name} (slug={slug}) by {owner_id}")
+        return workspace
+
+    @staticmethod
+    def get_workspace(db: Session, workspace_id: str) -> Optional[Workspace]:
+        """Get a workspace by ID"""
+        return db.query(Workspace).filter(Workspace.id == workspace_id).first()
+
+    @staticmethod
+    def list_user_workspaces(db: Session, user_id: str) -> List[Dict[str, Any]]:
+        """List all workspaces a user belongs to, with their role"""
+        memberships = db.query(WorkspaceMembership).filter(
+            WorkspaceMembership.user_id == user_id
+        ).all()
+
+        results = []
+        for m in memberships:
+            ws = db.query(Workspace).filter(Workspace.id == m.workspace_id).first()
+            if ws:
+                results.append({
+                    "id": ws.id,
+                    "name": ws.name,
+                    "slug": ws.slug,
+                    "description": ws.description,
+                    "owner_id": ws.owner_id,
+                    "settings": json.loads(ws.settings) if ws.settings else None,
+                    "role": m.role,
+                    "created_at": ws.created_at.isoformat() if ws.created_at else None,
+                })
+        return results
+
+    @staticmethod
+    def update_workspace(db: Session, workspace_id: str, **kwargs) -> Optional[Workspace]:
+        """Update workspace fields"""
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if not workspace:
+            return None
+        for key, value in kwargs.items():
+            if key == "settings" and isinstance(value, dict):
+                setattr(workspace, key, json.dumps(value))
+            elif hasattr(workspace, key):
+                setattr(workspace, key, value)
+        db.commit()
+        db.refresh(workspace)
+        return workspace
+
+    @staticmethod
+    def add_member(db: Session, workspace_id: str, user_id: str, role: str = "member") -> WorkspaceMembership:
+        """Add a member to a workspace"""
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if not workspace:
+            raise ValueError("Workspace not found")
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise ValueError("User not found")
+
+        existing = db.query(WorkspaceMembership).filter(
+            and_(WorkspaceMembership.workspace_id == workspace_id, WorkspaceMembership.user_id == user_id)
+        ).first()
+        if existing:
+            raise ValueError("User is already a member of this workspace")
+
+        membership = WorkspaceMembership(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            role=role,
+        )
+        db.add(membership)
+        db.commit()
+        db.refresh(membership)
+        return membership
+
+    @staticmethod
+    def remove_member(db: Session, workspace_id: str, user_id: str) -> bool:
+        """Remove a member from a workspace"""
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if not workspace:
+            raise ValueError("Workspace not found")
+
+        # Prevent removing the owner
+        if workspace.owner_id == user_id:
+            raise ValueError("Cannot remove the workspace owner")
+
+        count = db.query(WorkspaceMembership).filter(
+            and_(WorkspaceMembership.workspace_id == workspace_id, WorkspaceMembership.user_id == user_id)
+        ).delete()
+        db.commit()
+        return count > 0
+
+    @staticmethod
+    def get_workspace_members(db: Session, workspace_id: str) -> List[Dict[str, Any]]:
+        """Get all members of a workspace with their roles"""
+        memberships = db.query(WorkspaceMembership).filter(
+            WorkspaceMembership.workspace_id == workspace_id
+        ).all()
+
+        members = []
+        for m in memberships:
+            user = db.query(User).filter(User.id == m.user_id).first()
+            if user:
+                members.append({
+                    "id": user.id,
+                    "email": user.email,
+                    "name": user.name,
+                    "role": m.role,
+                    "joined_at": m.created_at.isoformat() if m.created_at else None,
+                })
+        return members
+
+    @staticmethod
+    def check_workspace_permission(db: Session, workspace_id: str, user_id: str, required_role: str = "member") -> bool:
+        """Check if a user has the required role in a workspace"""
+        role_hierarchy = {"viewer": 0, "member": 1, "admin": 2}
+
+        membership = db.query(WorkspaceMembership).filter(
+            and_(WorkspaceMembership.workspace_id == workspace_id, WorkspaceMembership.user_id == user_id)
+        ).first()
+
+        if not membership:
+            return False
+
+        return role_hierarchy.get(membership.role, 0) >= role_hierarchy.get(required_role, 0)
