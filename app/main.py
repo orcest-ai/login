@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -16,10 +17,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from .database import get_db, init_database
-from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric
+from .models import (
+    User, Session as UserSession, AccessGrant, OIDCClient, AuditLog,
+    AuthorizationCode, RefreshToken, UsageMetric, Group, GroupMembership,
+    Workspace, WorkspaceMembership,
+)
 from .services import (
-    UserService, SessionService, AccessGrantService, AuditService, 
-    JWTService, OIDCService, ROLES, SERVICE_DOMAINS, AnalyticsService
+    UserService, SessionService, AccessGrantService, AuditService,
+    JWTService, OIDCService, ROLES, SERVICE_DOMAINS, AnalyticsService,
+    GroupService, SCIMService, WorkspaceService,
 )
 
 # Configure logging
@@ -132,6 +138,26 @@ def require_admin(request: Request, db: Session = Depends(get_db)) -> User:
             detail="Admin access required"
         )
     return user
+
+
+# SCIM Bearer Token - master admin key for SCIM provisioning
+SCIM_BEARER_TOKEN = os.environ.get("SCIM_BEARER_TOKEN", secrets.token_hex(32))
+
+
+def require_scim_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Dependency that requires SCIM Bearer token authentication"""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if credentials.credentials != SCIM_BEARER_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid SCIM bearer token",
+        )
+    return credentials.credentials
 
 
 # ============================================================================
@@ -1246,6 +1272,486 @@ async def orcide_team_info(
     return {
         "teamMembers": team_members,
         "totalMembers": len(team_members) + 1,
+    }
+
+
+# ============================================================================
+# SCIM 2.0 ENDPOINTS
+# ============================================================================
+
+@app.get("/scim/v2/ServiceProviderConfig")
+async def scim_service_provider_config(token: str = Depends(require_scim_auth)):
+    """SCIM ServiceProviderConfig endpoint"""
+    return SCIMService.get_service_provider_config()
+
+
+@app.get("/scim/v2/Users")
+async def scim_list_users(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+    filter: str = None,
+    startIndex: int = 1,
+    count: int = 100,
+):
+    """SCIM List Users endpoint"""
+    return SCIMService.get_users(db, filter_query=filter, start_index=startIndex, count=count)
+
+
+@app.post("/scim/v2/Users", status_code=201)
+async def scim_create_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+):
+    """SCIM Create User endpoint"""
+    body = await request.json()
+    try:
+        return SCIMService.create_user(db, body)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/scim/v2/Users/{user_id}")
+async def scim_get_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+):
+    """SCIM Get User endpoint"""
+    result = SCIMService.get_user(db, user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    return result
+
+
+@app.put("/scim/v2/Users/{user_id}")
+async def scim_replace_user(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+):
+    """SCIM Replace User endpoint (full update)"""
+    body = await request.json()
+    result = SCIMService.update_user(db, user_id, body)
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    return result
+
+
+@app.patch("/scim/v2/Users/{user_id}")
+async def scim_update_user(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+):
+    """SCIM Patch User endpoint (partial update)"""
+    body = await request.json()
+
+    # Handle SCIM PATCH Operations format
+    operations = body.get("Operations", [])
+    if operations:
+        patch_data = {}
+        for op in operations:
+            op_type = op.get("op", "").lower()
+            path = op.get("path", "")
+            value = op.get("value")
+            if op_type in ("replace", "add"):
+                if path == "userName":
+                    patch_data["userName"] = value
+                elif path == "displayName":
+                    patch_data["displayName"] = value
+                elif path == "active":
+                    patch_data["active"] = value
+                elif path == "name":
+                    patch_data["name"] = value
+                elif path == "password":
+                    patch_data["password"] = value
+        body = patch_data
+
+    result = SCIMService.update_user(db, user_id, body)
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    return result
+
+
+@app.delete("/scim/v2/Users/{user_id}", status_code=204)
+async def scim_delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+):
+    """SCIM Delete User endpoint (deactivates user)"""
+    success = SCIMService.delete_user(db, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    return None
+
+
+@app.get("/scim/v2/Groups")
+async def scim_list_groups(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+    startIndex: int = 1,
+    count: int = 100,
+):
+    """SCIM List Groups endpoint"""
+    return SCIMService.get_groups(db, start_index=startIndex, count=count)
+
+
+@app.post("/scim/v2/Groups", status_code=201)
+async def scim_create_group(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_scim_auth),
+):
+    """SCIM Create Group endpoint"""
+    body = await request.json()
+    try:
+        return SCIMService.create_group(db, body)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+# ============================================================================
+# WORKSPACE MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.get("/api/workspaces")
+async def list_workspaces(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """List workspaces for the authenticated user"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    workspaces = WorkspaceService.list_user_workspaces(db, user.id)
+    return {"workspaces": workspaces}
+
+
+@app.post("/api/workspaces", status_code=201)
+async def create_workspace(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Create a new workspace"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    body = await request.json()
+    name = body.get("name", "").strip()
+    slug = body.get("slug", "").strip()
+    description = body.get("description", "")
+    settings = body.get("settings")
+
+    if not name or not slug:
+        raise HTTPException(status_code=400, detail="name and slug are required")
+
+    try:
+        workspace = WorkspaceService.create_workspace(
+            db, name=name, slug=slug, owner_id=user.id,
+            description=description, settings=settings,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return {
+        "id": workspace.id,
+        "name": workspace.name,
+        "slug": workspace.slug,
+        "description": workspace.description,
+        "owner_id": workspace.owner_id,
+        "created_at": workspace.created_at.isoformat() if workspace.created_at else None,
+    }
+
+
+@app.put("/api/workspaces/{workspace_id}")
+async def update_workspace(
+    workspace_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Update an existing workspace"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check permission: must be workspace admin or platform admin
+    if user.role != "admin" and not WorkspaceService.check_workspace_permission(db, workspace_id, user.id, "admin"):
+        raise HTTPException(status_code=403, detail="Workspace admin access required")
+
+    body = await request.json()
+    update_fields = {}
+    if "name" in body:
+        update_fields["name"] = body["name"]
+    if "description" in body:
+        update_fields["description"] = body["description"]
+    if "settings" in body:
+        update_fields["settings"] = body["settings"]
+
+    workspace = WorkspaceService.update_workspace(db, workspace_id, **update_fields)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    return {
+        "id": workspace.id,
+        "name": workspace.name,
+        "slug": workspace.slug,
+        "description": workspace.description,
+        "owner_id": workspace.owner_id,
+        "created_at": workspace.created_at.isoformat() if workspace.created_at else None,
+    }
+
+
+@app.post("/api/workspaces/{workspace_id}/members")
+async def add_workspace_member(
+    workspace_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Add a member to a workspace"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check permission: must be workspace admin or platform admin
+    if user.role != "admin" and not WorkspaceService.check_workspace_permission(db, workspace_id, user.id, "admin"):
+        raise HTTPException(status_code=403, detail="Workspace admin access required")
+
+    body = await request.json()
+    target_user_id = body.get("user_id", "").strip()
+    member_role = body.get("role", "member")
+
+    if not target_user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    try:
+        membership = WorkspaceService.add_member(db, workspace_id, target_user_id, member_role)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return {
+        "id": membership.id,
+        "workspace_id": membership.workspace_id,
+        "user_id": membership.user_id,
+        "role": membership.role,
+        "created_at": membership.created_at.isoformat() if membership.created_at else None,
+    }
+
+
+@app.delete("/api/workspaces/{workspace_id}/members/{member_user_id}")
+async def remove_workspace_member(
+    workspace_id: str,
+    member_user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Remove a member from a workspace"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check permission: must be workspace admin or platform admin
+    if user.role != "admin" and not WorkspaceService.check_workspace_permission(db, workspace_id, user.id, "admin"):
+        raise HTTPException(status_code=403, detail="Workspace admin access required")
+
+    try:
+        removed = WorkspaceService.remove_member(db, workspace_id, member_user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not removed:
+        raise HTTPException(status_code=404, detail="Member not found in workspace")
+
+    return {"removed": True}
+
+
+# ============================================================================
+# GROUP MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.get("/api/groups")
+async def list_groups(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """List all groups"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    groups = GroupService.list_groups(db)
+    result = []
+    for g in groups:
+        members = GroupService.get_group_members(db, g.id)
+        result.append({
+            "id": g.id,
+            "name": g.name,
+            "description": g.description,
+            "permissions": json.loads(g.permissions) if g.permissions else None,
+            "member_count": len(members),
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+        })
+    return {"groups": result}
+
+
+@app.post("/api/groups", status_code=201)
+async def create_group(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Create a new group (admin only)"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    body = await request.json()
+    name = body.get("name", "").strip()
+    description = body.get("description", "")
+    permissions = body.get("permissions")
+
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+
+    try:
+        group = GroupService.create_group(db, name=name, description=description, permissions=permissions)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "permissions": json.loads(group.permissions) if group.permissions else None,
+        "created_at": group.created_at.isoformat() if group.created_at else None,
+    }
+
+
+@app.put("/api/groups/{group_id}")
+async def update_group(
+    group_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Update an existing group (admin only)"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    body = await request.json()
+    update_fields = {}
+    if "name" in body:
+        update_fields["name"] = body["name"]
+    if "description" in body:
+        update_fields["description"] = body["description"]
+    if "permissions" in body:
+        update_fields["permissions"] = body["permissions"]
+
+    group = GroupService.update_group(db, group_id, **update_fields)
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    return {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "permissions": json.loads(group.permissions) if group.permissions else None,
+        "created_at": group.created_at.isoformat() if group.created_at else None,
+    }
+
+
+@app.post("/api/groups/{group_id}/members")
+async def add_group_member(
+    group_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Add a member to a group (admin only)"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    body = await request.json()
+    target_user_id = body.get("user_id", "").strip()
+
+    if not target_user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    try:
+        membership = GroupService.add_member(db, group_id, target_user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return {
+        "id": membership.id,
+        "group_id": membership.group_id,
+        "user_id": membership.user_id,
+        "created_at": membership.created_at.isoformat() if membership.created_at else None,
     }
 
 

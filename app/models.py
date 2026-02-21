@@ -24,6 +24,9 @@ class User(Base):
     access_grants = relationship("AccessGrant", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     usage_metrics = relationship("UsageMetric", back_populates="user", cascade="all, delete-orphan")
+    group_memberships = relationship("GroupMembership", back_populates="user", cascade="all, delete-orphan")
+    owned_workspaces = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
+    workspace_memberships = relationship("WorkspaceMembership", back_populates="user", cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -161,4 +164,68 @@ class UsageMetric(Base):
     __table_args__ = (
         Index('ix_usage_metrics_user_created', 'user_id', 'created_at'),
         Index('ix_usage_metrics_subsystem', 'subsystem'),
+    )
+
+
+class Group(Base):
+    __tablename__ = "groups"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    permissions = Column(Text, nullable=True)  # JSON permissions
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    memberships = relationship("GroupMembership", back_populates="group", cascade="all, delete-orphan")
+
+
+class GroupMembership(Base):
+    __tablename__ = "group_memberships"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    group_id = Column(String, ForeignKey("groups.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = relationship("User", back_populates="group_memberships")
+    group = relationship("Group", back_populates="memberships")
+
+    __table_args__ = (
+        Index('ix_group_memberships_user_group', 'user_id', 'group_id', unique=True),
+    )
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=False)
+    settings = Column(Text, nullable=True)  # JSON settings
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    owner = relationship("User", back_populates="owned_workspaces")
+    memberships = relationship("WorkspaceMembership", back_populates="workspace", cascade="all, delete-orphan")
+
+
+class WorkspaceMembership(Base):
+    __tablename__ = "workspace_memberships"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False, default="member")  # "admin", "member", "viewer"
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    workspace = relationship("Workspace", back_populates="memberships")
+    user = relationship("User", back_populates="workspace_memberships")
+
+    __table_args__ = (
+        Index('ix_workspace_memberships_ws_user', 'workspace_id', 'user_id', unique=True),
     )
