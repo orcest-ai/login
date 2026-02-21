@@ -602,22 +602,25 @@ class OIDCService:
         ).first()
     
     @staticmethod
-    def create_authorization_code(db: Session, client_id: str, user_email: str, redirect_uri: str, scope: str) -> str:
+    def create_authorization_code(db: Session, client_id: str, user_email: str, redirect_uri: str, scope: str,
+                                   code_challenge: str = None, code_challenge_method: str = None) -> str:
         """Create an authorization code"""
         code = secrets.token_urlsafe(32)
-        
+
         auth_code = AuthorizationCode(
             code=code,
             client_id=client_id,
             user_email=user_email,
             redirect_uri=redirect_uri,
             scope=scope,
+            code_challenge=code_challenge,
+            code_challenge_method=code_challenge_method,
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=5)  # 5 minute expiry
         )
-        
+
         db.add(auth_code)
         db.commit()
-        
+
         return code
     
     @staticmethod

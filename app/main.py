@@ -1,4 +1,7 @@
 import os
+import json
+import hashlib
+import base64
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -43,7 +46,7 @@ security = HTTPBearer(auto_error=False)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=86400)  # 24 hours
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://*.orcest.ai"],
+    allow_origin_regex=r"https://([a-zA-Z0-9-]+\.)?orcest\.ai",
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
@@ -679,6 +682,8 @@ async def authorize(
     response_type: str = "code",
     scope: str = "openid",
     state: str = "",
+    code_challenge: str = "",
+    code_challenge_method: str = "",
 ):
     """OIDC Authorization endpoint"""
     if not client_id:
@@ -705,11 +710,14 @@ async def authorize(
             "response_type": response_type,
             "scope": scope,
             "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method,
         }
         return RedirectResponse(url="/?redirect=/oauth2/authorize/continue", status_code=302)
     
     # Check if user has access to this service
-    service_name = client_id  # client_id matches service name
+    # Map client_id to service domain for access check (ROLES use domain-style names)
+    service_name = SERVICE_DOMAINS.get(client_id, client_id)
     if not AccessGrantService.check_access(db, user, service_name):
         AuditService.log_action(
             db, user.id, "access_denied", get_client_ip(request),
@@ -726,7 +734,9 @@ async def authorize(
     
     # Create authorization code
     code = OIDCService.create_authorization_code(
-        db, client_id, user.email, redirect_uri, scope
+        db, client_id, user.email, redirect_uri, scope,
+        code_challenge=code_challenge or None,
+        code_challenge_method=code_challenge_method or None,
     )
     
     # Log successful authorization
@@ -773,28 +783,44 @@ async def token_endpoint(
     client_id: str = Form(None),
     client_secret: str = Form(None),
     refresh_token: str = Form(None),
+    code_verifier: str = Form(None),
 ):
     """OIDC Token endpoint"""
     if grant_type == "authorization_code":
         if not code:
             raise HTTPException(status_code=400, detail="Missing authorization code")
-        
+
         # Consume authorization code
         auth_code = OIDCService.consume_authorization_code(db, code)
         if not auth_code:
             raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
-        
+
         # Validate client credentials
         if client_id and client_id != auth_code.client_id:
             raise HTTPException(status_code=400, detail="Client ID mismatch")
-        
+
         client = OIDCService.get_client(db, auth_code.client_id)
         if not client:
             raise HTTPException(status_code=400, detail="Invalid client")
-        
-        # CRITICAL: Validate client_secret (security fix)
-        if client_secret != client.client_secret:
-            raise HTTPException(status_code=401, detail="Invalid client credentials")
+
+        # Authenticate: PKCE (public client) or client_secret (confidential client)
+        if auth_code.code_challenge and auth_code.code_challenge_method:
+            # PKCE flow: validate code_verifier against stored code_challenge
+            if not code_verifier:
+                raise HTTPException(status_code=400, detail="Missing code_verifier for PKCE flow")
+            if auth_code.code_challenge_method == "S256":
+                digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+                computed = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+            elif auth_code.code_challenge_method == "plain":
+                computed = code_verifier
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported code_challenge_method")
+            if computed != auth_code.code_challenge:
+                raise HTTPException(status_code=401, detail="Invalid code_verifier")
+        else:
+            # Confidential client: validate client_secret
+            if client_secret != client.client_secret:
+                raise HTTPException(status_code=401, detail="Invalid client credentials")
         
         # Get user
         user = UserService.get_user_by_email(db, auth_code.user_email)

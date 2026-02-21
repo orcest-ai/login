@@ -107,12 +107,14 @@ class AuditLog(Base):
 
 class AuthorizationCode(Base):
     __tablename__ = "authorization_codes"
-    
+
     code = Column(String, primary_key=True)
     client_id = Column(String, nullable=False)
     user_email = Column(String, nullable=False)
     redirect_uri = Column(String, nullable=False)
     scope = Column(String, nullable=False)
+    code_challenge = Column(String, nullable=True)
+    code_challenge_method = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
     used = Column(Boolean, default=False)
