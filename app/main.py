@@ -689,7 +689,7 @@ async def authorize(
         raise HTTPException(status_code=400, detail="Invalid client_id")
     
     # Validate redirect URI
-        allowed_uris = json.loads(client.redirect_uris)
+    allowed_uris = json.loads(client.redirect_uris)
     if redirect_uri and redirect_uri not in allowed_uris:
         raise HTTPException(status_code=400, detail="Invalid redirect_uri")
     if not redirect_uri:
@@ -1060,6 +1060,193 @@ async def api_user_analytics(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return AnalyticsService.get_user_activity_details(db, user_id)
+
+
+# ============================================================================
+# ORCIDE IDE API ENDPOINTS
+# ============================================================================
+
+@app.get("/api/orcide/config")
+async def orcide_config(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Get Orcide IDE configuration for authenticated user.
+    Returns API keys and available services based on user role."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user or not user.is_active:
+        raise HTTPException(status_code=403, detail="User not found or inactive")
+
+    # Get environment-based API keys for Orcest AI services
+    api_keys = {}
+
+    # RainyModel API - default provider
+    rainymodel_key = os.environ.get("ORCEST_RAINYMODEL_API_KEY", "")
+    if rainymodel_key:
+        api_keys["rainymodel"] = {
+            "endpoint": "https://rm.orcest.ai/v1",
+            "apiKey": rainymodel_key,
+            "displayName": "RainyModel",
+            "isDefault": True,
+        }
+
+    # Lamino API
+    lamino_key = os.environ.get("ORCEST_LAMINO_API_KEY", "")
+    if lamino_key:
+        api_keys["lamino"] = {
+            "endpoint": "https://llm.orcest.ai/v1",
+            "apiKey": lamino_key,
+            "displayName": "Lamino",
+            "isDefault": False,
+        }
+
+    # OllamaFreeAPI
+    ollamafreeapi_key = os.environ.get("ORCEST_OLLAMAFREEAPI_KEY", "")
+    if ollamafreeapi_key:
+        api_keys["ollamafreeapi"] = {
+            "endpoint": "https://ollamafreeapi.orcest.ai/v1",
+            "apiKey": ollamafreeapi_key,
+            "displayName": "OllamaFreeAPI",
+            "isDefault": False,
+        }
+
+    # Maestrist Agent API
+    maestrist_key = os.environ.get("ORCEST_MAESTRIST_API_KEY", "")
+    if maestrist_key:
+        api_keys["maestrist"] = {
+            "endpoint": "https://agent.orcest.ai/v1",
+            "apiKey": maestrist_key,
+            "displayName": "Maestrist",
+            "isDefault": False,
+        }
+
+    # Additional provider keys from environment
+    for env_key, env_val in os.environ.items():
+        if env_key.startswith("ORCEST_PROVIDER_") and env_key.endswith("_KEY"):
+            provider_name = env_key.replace("ORCEST_PROVIDER_", "").replace("_KEY", "").lower()
+            endpoint = os.environ.get(f"ORCEST_PROVIDER_{provider_name.upper()}_ENDPOINT", "")
+            display_name = os.environ.get(f"ORCEST_PROVIDER_{provider_name.upper()}_NAME", provider_name)
+            if provider_name not in api_keys:
+                api_keys[provider_name] = {
+                    "endpoint": endpoint,
+                    "apiKey": env_val,
+                    "displayName": display_name,
+                    "isDefault": False,
+                }
+
+    # Get user's accessible services
+    user_role_services = ROLES.get(user.role, {}).get("services", [])
+
+    # Get user's active grants
+    grants = AccessGrantService.list_user_grants(db, user.id)
+    active_grants = [
+        g.service_name for g in grants
+        if g.expires_at > datetime.now(timezone.utc)
+    ]
+
+    return {
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+        },
+        "apiProviders": api_keys,
+        "defaultProvider": "rainymodel",
+        "accessibleServices": user_role_services,
+        "activeGrants": active_grants,
+        "availableModels": [
+            "rainymodel-pro",
+            "rainymodel-standard",
+            "rainymodel-lite",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "claude-3.5-sonnet",
+            "gemini-1.5-pro",
+            "llama-3.1-70b",
+            "mixtral-8x7b",
+        ],
+    }
+
+
+@app.post("/api/orcide/usage")
+async def orcide_report_usage(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Report usage metrics from Orcide IDE"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user or not user.is_active:
+        raise HTTPException(status_code=403, detail="User not found or inactive")
+
+    body = await request.json()
+
+    AnalyticsService.create_usage_metric(
+        db,
+        user_id=user.id,
+        subsystem=body.get("subsystem", "OrcIDE"),
+        model_name=body.get("model", "unknown"),
+        prompt_tokens=body.get("promptTokens", 0),
+        completion_tokens=body.get("completionTokens", 0),
+        quality_score=body.get("qualityScore"),
+        latency_ms=body.get("latencyMs"),
+        meta=body.get("metadata", {})
+    )
+
+    return {"recorded": True}
+
+
+@app.get("/api/orcide/team/{user_id}")
+async def orcide_team_info(
+    user_id: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Get team information for collaboration features in Orcide IDE"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    requester = UserService.get_user_by_email(db, payload.get("sub"))
+    if not requester or not requester.is_active:
+        raise HTTPException(status_code=403, detail="User not found or inactive")
+
+    # Get all users with same role or lower for team features
+    all_users = UserService.list_users(db)
+    team_members = []
+    for u in all_users:
+        if u.is_active and u.id != requester.id:
+            team_members.append({
+                "id": u.id,
+                "email": u.email,
+                "name": u.name,
+                "role": u.role,
+                "lastLogin": u.last_login.isoformat() if u.last_login else None,
+            })
+
+    return {
+        "teamMembers": team_members,
+        "totalMembers": len(team_members) + 1,
+    }
 
 
 # ============================================================================
