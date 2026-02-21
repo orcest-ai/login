@@ -140,6 +140,29 @@ class RefreshToken(Base):
     )
 
 
+class Workspace(Base):
+    __tablename__ = "workspaces"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=False)
+    model = Column(String, default="rainymodel/auto")
+    provider = Column(String, default="rainymodel")
+    system_prompt = Column(Text, nullable=True)
+    settings = Column(Text, nullable=True)  # JSON
+    members = Column(Text, nullable=True)  # JSON array of user IDs
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    owner = relationship("User", backref="workspaces")
+
+    __table_args__ = (
+        Index('ix_workspaces_owner', 'owner_id'),
+    )
+
+
 class UsageMetric(Base):
     __tablename__ = "usage_metrics"
 

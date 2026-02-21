@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from .database import get_db, init_database
-from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric
+from .models import User, Session as UserSession, AccessGrant, OIDCClient, AuditLog, AuthorizationCode, RefreshToken, UsageMetric, Workspace
 from .services import (
     UserService, SessionService, AccessGrantService, AuditService, 
     JWTService, OIDCService, ROLES, SERVICE_DOMAINS, AnalyticsService
@@ -43,9 +43,9 @@ security = HTTPBearer(auto_error=False)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=86400)  # 24 hours
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://*.orcest.ai"],
+    allow_origins=["https://*.orcest.ai", "https://orcest.ai", "https://llm.orcest.ai"],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -1308,3 +1308,201 @@ async def cleanup_expired_data(
         "expired_codes_removed": expired_codes,
         "expired_refresh_tokens_removed": expired_refresh_tokens
     }
+
+
+# --- Workspace Management API (for Lamino) ---
+
+import json as _json
+
+def _get_bearer_user(credentials, db):
+    """Extract user from bearer token for API endpoints."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="SSO authentication required")
+    payload = JWTService.verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired SSO token")
+    user = UserService.get_user_by_email(db, payload.get("sub"))
+    if not user or not user.is_active:
+        raise HTTPException(status_code=403, detail="User not found or inactive")
+    return user
+
+
+@app.get("/api/workspaces")
+async def api_list_workspaces(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """List workspaces owned by or shared with the authenticated user."""
+    user = _get_bearer_user(credentials, db)
+
+    owned = db.query(Workspace).filter(
+        Workspace.owner_id == user.id,
+        Workspace.is_active == True,
+    ).all()
+
+    # Also find workspaces where user is a member
+    all_active = db.query(Workspace).filter(Workspace.is_active == True).all()
+    shared = [
+        ws for ws in all_active
+        if ws.owner_id != user.id and user.id in _json.loads(ws.members or "[]")
+    ]
+
+    workspaces = owned + shared
+
+    # Create default workspace if none exists
+    if not workspaces:
+        default_ws = Workspace(
+            name=f"{user.name} - Default",
+            description="Default workspace with RainyModel auto-connect",
+            owner_id=user.id,
+            model="rainymodel/auto",
+            provider="rainymodel",
+            settings=_json.dumps({"temperature": 0.7, "max_tokens": 4096, "policy": "auto"}),
+            members="[]",
+        )
+        db.add(default_ws)
+        db.commit()
+        db.refresh(default_ws)
+        workspaces = [default_ws]
+
+    return {
+        "workspaces": [
+            {
+                "id": ws.id,
+                "name": ws.name,
+                "description": ws.description or "",
+                "owner_id": ws.owner_id,
+                "model": ws.model or "rainymodel/auto",
+                "provider": ws.provider or "rainymodel",
+                "system_prompt": ws.system_prompt or "",
+                "settings": _json.loads(ws.settings) if ws.settings else {},
+                "members": _json.loads(ws.members) if ws.members else [],
+                "created_at": ws.created_at.isoformat() if ws.created_at else None,
+                "updated_at": ws.updated_at.isoformat() if ws.updated_at else None,
+            }
+            for ws in workspaces
+        ]
+    }
+
+
+@app.post("/api/workspaces")
+async def api_create_workspace(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Create a new workspace."""
+    user = _get_bearer_user(credentials, db)
+    body = await request.json()
+
+    ws = Workspace(
+        name=body.get("name", "New Workspace"),
+        description=body.get("description", ""),
+        owner_id=user.id,
+        model=body.get("model", "rainymodel/auto"),
+        provider=body.get("provider", "rainymodel"),
+        system_prompt=body.get("system_prompt", ""),
+        settings=_json.dumps(body.get("settings", {"temperature": 0.7, "max_tokens": 4096, "policy": "auto"})),
+        members=_json.dumps(body.get("members", [])),
+    )
+    db.add(ws)
+    db.commit()
+    db.refresh(ws)
+
+    AuditService.log_action(
+        db, user.id, "workspace_created", get_client_ip(request),
+        request.headers.get("User-Agent", ""),
+        details={"workspace_id": ws.id, "name": ws.name}
+    )
+
+    return {
+        "workspace": {
+            "id": ws.id,
+            "name": ws.name,
+            "description": ws.description or "",
+            "owner_id": ws.owner_id,
+            "model": ws.model,
+            "provider": ws.provider,
+            "system_prompt": ws.system_prompt or "",
+            "settings": _json.loads(ws.settings) if ws.settings else {},
+            "members": _json.loads(ws.members) if ws.members else [],
+            "created_at": ws.created_at.isoformat() if ws.created_at else None,
+        }
+    }
+
+
+@app.put("/api/workspaces/{workspace_id}")
+async def api_update_workspace(
+    workspace_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Update a workspace (owner or member)."""
+    user = _get_bearer_user(credentials, db)
+
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.is_active == True).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    members = _json.loads(ws.members or "[]")
+    if ws.owner_id != user.id and user.id not in members:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    for field in ["name", "description", "model", "provider", "system_prompt"]:
+        if field in body:
+            setattr(ws, field, body[field])
+    if "settings" in body:
+        ws.settings = _json.dumps(body["settings"])
+    if "members" in body:
+        ws.members = _json.dumps(body["members"])
+    ws.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(ws)
+
+    return {
+        "workspace": {
+            "id": ws.id,
+            "name": ws.name,
+            "description": ws.description or "",
+            "owner_id": ws.owner_id,
+            "model": ws.model,
+            "provider": ws.provider,
+            "system_prompt": ws.system_prompt or "",
+            "settings": _json.loads(ws.settings) if ws.settings else {},
+            "members": _json.loads(ws.members) if ws.members else [],
+            "updated_at": ws.updated_at.isoformat() if ws.updated_at else None,
+        }
+    }
+
+
+@app.delete("/api/workspaces/{workspace_id}")
+async def api_delete_workspace(
+    workspace_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Delete a workspace (owner only)."""
+    user = _get_bearer_user(credentials, db)
+
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id, Workspace.is_active == True).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    if ws.owner_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only the owner or admin can delete a workspace")
+
+    ws.is_active = False
+    ws.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    AuditService.log_action(
+        db, user.id, "workspace_deleted", get_client_ip(request),
+        request.headers.get("User-Agent", ""),
+        details={"workspace_id": ws.id, "name": ws.name}
+    )
+
+    return {"deleted": True}

@@ -560,9 +560,12 @@ class OIDCService:
                 "redirect_uris": ["https://rm.orcest.ai/auth/callback"]
             },
             {
-                "client_id": "lamino", 
+                "client_id": "lamino",
                 "service_name": "Lamino",
-                "redirect_uris": ["https://llm.orcest.ai/auth/callback"]
+                "redirect_uris": [
+                    "https://llm.orcest.ai/auth/callback",
+                    "https://orcest.ai/lamino/auth/callback"
+                ]
             },
             {
                 "client_id": "maestrist",
