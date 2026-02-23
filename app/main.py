@@ -27,6 +27,7 @@ from .services import (
     JWTService, OIDCService, ROLES, SERVICE_DOMAINS, AnalyticsService,
     GroupService, SCIMService, WorkspaceService,
 )
+from .ga4_service import GA4Service, GA4ServiceError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -280,6 +281,7 @@ async def portal_page(request: Request, db: Session = Depends(get_db)):
 
     management_links = [
         {"title": "پروفایل کاربری", "desc": "مشاهده اطلاعات، جلسات و دسترسی‌ها", "url": "/profile", "type": "view"},
+        {"title": "Google Analytics", "desc": "گزارش کامل کاربران، ترافیک، صفحات و نرخ تعامل", "url": "/analytics", "type": "analytics"},
     ]
 
     if user.role == "admin":
@@ -320,6 +322,43 @@ async def profile_edit(
         details={"field": "name"}
     )
     return RedirectResponse(url="/profile?success=پروفایل بروزرسانی شد", status_code=302)
+
+
+@app.get("/analytics", response_class=HTMLResponse)
+async def ga4_dashboard_page(request: Request, db: Session = Depends(get_db)):
+    """Authenticated Google Analytics dashboard"""
+    user = require_auth(request, db)
+
+    ga4_data = None
+    ga4_error = None
+    try:
+        ga4_data = GA4Service().get_dashboard_data()
+    except GA4ServiceError as exc:
+        ga4_error = str(exc)
+        logger.warning("GA4 dashboard error: %s", ga4_error)
+    except Exception as exc:
+        ga4_error = f"Unexpected analytics error: {exc}"
+        logger.exception("Unexpected GA4 error")
+
+    return templates.TemplateResponse("ga4_dashboard.html", {
+        "request": request,
+        "user": user,
+        "ga4_data": ga4_data,
+        "ga4_error": ga4_error,
+    })
+
+
+@app.get("/api/analytics/ga4")
+async def ga4_dashboard_api(request: Request, db: Session = Depends(get_db)):
+    """Authenticated GA4 data endpoint for dashboard refresh."""
+    _ = require_auth(request, db)
+    try:
+        return GA4Service().get_dashboard_data()
+    except GA4ServiceError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
+    except Exception as exc:
+        logger.exception("GA4 API error")
+        return JSONResponse({"ok": False, "error": f"Unexpected analytics error: {exc}"}, status_code=500)
 
 
 # ============================================================================

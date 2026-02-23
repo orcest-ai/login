@@ -12,3 +12,5 @@ passlib[bcrypt]>=1.7.4
 python-dateutil>=2.8.2
 user-agents>=2.2.0
 geoip2>=4.8.0
+google-analytics-data
+google-auth

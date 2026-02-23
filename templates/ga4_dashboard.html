@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Google Analytics - Orcest AI{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2>Google Analytics Dashboard</h2>
+        <div class="d-flex" style="gap:8px;">
+            <a href="/api/analytics/ga4" class="btn btn-secondary btn-sm" target="_blank" rel="noopener noreferrer">GA4 API</a>
+            <a href="https://analytics.google.com/" class="btn btn-sm" target="_blank" rel="noopener noreferrer">Open Google Analytics</a>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if ga4_error %}
+        <div class="alert alert-error">{{ ga4_error }}</div>
+        {% endif %}
+
+        {% if ga4_data and ga4_data.ok %}
+        <div class="alert alert-info">
+            <strong>Property ID:</strong> {{ ga4_data.property_id }} |
+            <strong>Stream:</strong> {{ ga4_data.stream_name }} |
+            <strong>Measurement ID:</strong> {{ ga4_data.measurement_id }}
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ ga4_data.realtime_active_users }}</div>
+                <div class="stat-label">Active Users (Realtime)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ ga4_data.summary.active_users }}</div>
+                <div class="stat-label">Active Users (30 days)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ ga4_data.summary.sessions }}</div>
+                <div class="stat-label">Sessions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ ga4_data.summary.page_views }}</div>
+                <div class="stat-label">Page Views</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ ga4_data.summary.engagement_rate }}%</div>
+                <div class="stat-label">Engagement Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ ga4_data.summary.bounce_rate }}%</div>
+                <div class="stat-label">Bounce Rate</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if ga4_data and ga4_data.ok %}
+<div class="card">
+    <div class="card-header"><h4>کاربران فعال و روند ترافیک</h4></div>
+    <div class="card-body"><canvas id="trendChart" height="110"></canvas></div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h4>منابع ترافیک</h4></div>
+    <div class="card-body"><canvas id="trafficChart" height="120"></canvas></div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h4>جغرافیای کاربران</h4></div>
+    <div class="card-body"><canvas id="geoChart" height="120"></canvas></div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h4>Demographics</h4></div>
+    <div class="card-body">
+        {% if ga4_data.demographics %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Gender</th>
+                        <th>Age Bracket</th>
+                        <th>Active Users</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in ga4_data.demographics %}
+                    <tr>
+                        <td>{{ row.gender }}</td>
+                        <td>{{ row.age_bracket }}</td>
+                        <td>{{ row.active_users }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">Demographics data is currently unavailable for this GA4 property.</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h4>Top Pages</h4></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Page Title</th>
+                        <th>Path</th>
+                        <th>Page Views</th>
+                        <th>Active Users</th>
+                        <th>Engagement Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in ga4_data.top_pages %}
+                    <tr>
+                        <td>{{ row.title }}</td>
+                        <td><code>{{ row.path }}</code></td>
+                        <td>{{ row.page_views }}</td>
+                        <td>{{ row.active_users }}</td>
+                        <td>{{ row.engagement_rate }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if not ga4_data or not ga4_data.ok %}
+<div class="card">
+    <div class="card-header"><h4>وضعیت داشبورد</h4></div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            داده‌ای برای نمایش موجود نیست. پس از بررسی تنظیمات GA4 و Service Account، صفحه را دوباره باز کنید.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if ga4_data and ga4_data.ok %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ga4Data = {{ ga4_data | tojson }};
+const trendLabels = ga4Data.trend.map((x) => x.date);
+const activeUsersSeries = ga4Data.trend.map((x) => x.active_users);
+const sessionsSeries = ga4Data.trend.map((x) => x.sessions);
+const pageViewsSeries = ga4Data.trend.map((x) => x.page_views);
+
+new Chart(document.getElementById("trendChart"), {
+  type: "line",
+  data: {
+    labels: trendLabels,
+    datasets: [
+      { label: "Active Users", data: activeUsersSeries, borderColor: "#007bff", backgroundColor: "rgba(0,123,255,0.12)", fill: true, tension: 0.3 },
+      { label: "Sessions", data: sessionsSeries, borderColor: "#28a745", backgroundColor: "rgba(40,167,69,0.08)", fill: false, tension: 0.3 },
+      { label: "Page Views", data: pageViewsSeries, borderColor: "#fd7e14", backgroundColor: "rgba(253,126,20,0.08)", fill: false, tension: 0.3 },
+    ]
+  },
+  options: { responsive: true, maintainAspectRatio: false }
+});
+
+new Chart(document.getElementById("trafficChart"), {
+  type: "bar",
+  data: {
+    labels: ga4Data.traffic_sources.map((x) => x.source_medium),
+    datasets: [
+      { label: "Sessions", data: ga4Data.traffic_sources.map((x) => x.sessions), backgroundColor: "rgba(23,162,184,0.7)" },
+      { label: "Active Users", data: ga4Data.traffic_sources.map((x) => x.active_users), backgroundColor: "rgba(111,66,193,0.7)" },
+    ]
+  },
+  options: { responsive: true, maintainAspectRatio: false, indexAxis: "y" }
+});
+
+new Chart(document.getElementById("geoChart"), {
+  type: "bar",
+  data: {
+    labels: ga4Data.geography.map((x) => x.country),
+    datasets: [
+      { label: "Active Users", data: ga4Data.geography.map((x) => x.active_users), backgroundColor: "rgba(0,123,255,0.7)" },
+      { label: "Sessions", data: ga4Data.geography.map((x) => x.sessions), backgroundColor: "rgba(40,167,69,0.7)" },
+    ]
+  },
+  options: { responsive: true, maintainAspectRatio: false }
+});
+</script>
+{% endif %}
+{% endblock %}
