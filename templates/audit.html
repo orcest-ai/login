@@ -1,33 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}گزارش حسابرسی - Orcest AI{% endblock %}
+{% block title %}Audit Logs - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h2>گزارش حسابرسی</h2>
-        <p class="text-muted">مشاهده تمام فعالیت‌ها و رویدادهای امنیتی سیستم</p>
+        <h2>Audit Logs</h2>
+        <p class="text-muted">View all activity and security events across the system.</p>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h4>فعالیت‌های اخیر</h4>
+        <h4>Recent Activity</h4>
         <div class="d-flex" style="gap: 10px;">
             <select onchange="filterByAction(this.value)" class="form-control" style="width: auto;">
-                <option value="">همه عملیات</option>
-                <option value="login_success">ورود موفق</option>
-                <option value="login_failed">ورود ناموفق</option>
-                <option value="logout">خروج</option>
-                <option value="oauth2_authorize">احراز هویت OIDC</option>
-                <option value="token_issued">صدور توکن</option>
-                <option value="access_granted">اعطای دسترسی</option>
-                <option value="access_denied">رد دسترسی</option>
-                <option value="user_created">ایجاد کاربر</option>
-                <option value="session_revoked_by_admin">لغو جلسه توسط مدیر</option>
+                <option value="">All Actions</option>
+                <option value="login_success">Login Success</option>
+                <option value="login_failed">Login Failed</option>
+                <option value="logout">Logout</option>
+                <option value="oauth2_authorize">OIDC Authorization</option>
+                <option value="token_issued">Token Issued</option>
+                <option value="access_granted">Access Granted</option>
+                <option value="access_denied">Access Denied</option>
+                <option value="user_created">User Created</option>
+                <option value="session_revoked_by_admin">Session Revoked by Admin</option>
             </select>
-            <button onclick="exportLogs()" class="btn btn-secondary btn-sm">خروجی Excel</button>
-            <button onclick="refreshLogs()" class="btn btn-secondary btn-sm">بروزرسانی</button>
+            <button onclick="exportLogs()" class="btn btn-secondary btn-sm">Export Excel</button>
+            <button onclick="refreshLogs()" class="btn btn-secondary btn-sm">Refresh</button>
         </div>
     </div>
     <div class="card-body">
@@ -36,12 +36,12 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th>زمان</th>
-                        <th>کاربر</th>
-                        <th>عملیات</th>
-                        <th>آدرس IP</th>
+                        <th>Time</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>IP Address</th>
                         <th>User Agent</th>
-                        <th>جزئیات</th>
+                        <th>Details</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -57,28 +57,28 @@
                             <small class="text-muted">{{ log.user.email }}</small><br>
                             <span class="badge badge-{{ log.user.role }}">{{ log.user.role }}</span>
                             {% else %}
-                            <span class="text-muted">سیستم</span>
+                            <span class="text-muted">System</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if log.action == 'login_success' %}
-                            <span class="badge badge-success">ورود موفق</span>
+                            <span class="badge badge-success">Login Success</span>
                             {% elif log.action == 'login_failed' %}
-                            <span class="badge badge-danger">ورود ناموفق</span>
+                            <span class="badge badge-danger">Login Failed</span>
                             {% elif log.action == 'logout' %}
-                            <span class="badge badge-info">خروج</span>
+                            <span class="badge badge-info">Logout</span>
                             {% elif log.action == 'oauth2_authorize' %}
-                            <span class="badge badge-success">احراز OIDC</span>
+                            <span class="badge badge-success">OIDC Auth</span>
                             {% elif log.action == 'token_issued' %}
-                            <span class="badge badge-info">صدور توکن</span>
+                            <span class="badge badge-info">Token Issued</span>
                             {% elif log.action == 'access_granted' %}
-                            <span class="badge badge-success">اعطای دسترسی</span>
+                            <span class="badge badge-success">Access Granted</span>
                             {% elif log.action == 'access_denied' %}
-                            <span class="badge badge-danger">رد دسترسی</span>
+                            <span class="badge badge-danger">Access Denied</span>
                             {% elif log.action == 'user_created' %}
-                            <span class="badge badge-success">ایجاد کاربر</span>
+                            <span class="badge badge-success">User Created</span>
                             {% elif log.action == 'session_revoked_by_admin' %}
-                            <span class="badge badge-warning">لغو جلسه</span>
+                            <span class="badge badge-warning">Session Revoked</span>
                             {% else %}
                             <span class="badge badge-secondary">{{ log.action }}</span>
                             {% endif %}
@@ -87,19 +87,19 @@
                             {% if log.ip_address %}
                             <code>{{ log.ip_address }}</code>
                             {% else %}
-                            <span class="text-muted">نامشخص</span>
+                            <span class="text-muted">Unknown</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if log.user_agent %}
                             <small>{{ log.user_agent[:50] }}{% if log.user_agent|length > 50 %}...{% endif %}</small>
                             {% else %}
-                            <span class="text-muted">نامشخص</span>
+                            <span class="text-muted">Unknown</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if log.details %}
-                            <button onclick="showDetails('{{ log.id }}')" class="btn btn-sm btn-info">مشاهده</button>
+                            <button onclick="showDetails('{{ log.id }}')" class="btn btn-sm btn-info">View</button>
                             <div id="details-{{ log.id }}" style="display: none;">
                                 <pre style="font-size: 11px; margin-top: 5px;">{{ log.details }}</pre>
                             </div>
@@ -117,7 +117,7 @@
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if has_prev %}
-            <a href="?page={{ page - 1 }}">&laquo; قبلی</a>
+            <a href="?page={{ page - 1 }}">&laquo; Previous</a>
             {% endif %}
             
             {% for p in range(1, total_pages + 1) %}
@@ -129,13 +129,13 @@
             {% endfor %}
             
             {% if has_next %}
-            <a href="?page={{ page + 1 }}">بعدی &raquo;</a>
+            <a href="?page={{ page + 1 }}">Next &raquo;</a>
             {% endif %}
         </div>
         {% endif %}
         {% else %}
         <div class="alert alert-info">
-            هیچ رویداد حسابرسی یافت نشد.
+            No audit events found.
         </div>
         {% endif %}
     </div>
@@ -143,30 +143,30 @@
 
 <div class="card">
     <div class="card-header">
-        <h4>آمار امنیتی</h4>
+        <h4>Security Statistics</h4>
     </div>
     <div class="card-body">
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-number">{{ logs|selectattr('action', 'equalto', 'login_success')|list|length }}</div>
-                <div class="stat-label">ورود موفق</div>
+                <div class="stat-label">Login Success</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ logs|selectattr('action', 'equalto', 'login_failed')|list|length }}</div>
-                <div class="stat-label">ورود ناموفق</div>
+                <div class="stat-label">Login Failed</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ logs|selectattr('action', 'equalto', 'access_denied')|list|length }}</div>
-                <div class="stat-label">رد دسترسی</div>
+                <div class="stat-label">Access Denied</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ logs|map(attribute='ip_address')|unique|list|length }}</div>
-                <div class="stat-label">IP های منحصربه‌فرد</div>
+                <div class="stat-label">Unique IPs</div>
             </div>
         </div>
         
         <div class="alert alert-info mt-3">
-            <strong>نکته امنیتی:</strong> رویدادهای مشکوک مانند تلاش‌های ورود ناموفق متعدد یا درخواست‌های دسترسی غیرمجاز را بررسی کنید.
+            <strong>Security Note:</strong> Review suspicious events such as repeated failed logins or unauthorized access requests.
         </div>
     </div>
 </div>
@@ -176,10 +176,10 @@ function showDetails(logId) {
     const details = document.getElementById('details-' + logId);
     if (details.style.display === 'none') {
         details.style.display = 'block';
-        event.target.textContent = 'مخفی';
+        event.target.textContent = 'Hide';
     } else {
         details.style.display = 'none';
-        event.target.textContent = 'مشاهده';
+        event.target.textContent = 'View';
     }
 }
 
@@ -200,7 +200,7 @@ function refreshLogs() {
 
 function exportLogs() {
     // TODO: Implement Excel export
-    alert('خروجی Excel در حال توسعه است');
+    alert('Excel export is under development');
 }
 
 // Auto-refresh every 60 seconds

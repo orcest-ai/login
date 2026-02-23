@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}مدیریت اپلیکیشن‌ها - Orcest AI{% endblock %}
+{% block title %}Application Management - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h2>مدیریت اپلیکیشن‌های OIDC</h2>
-        <p class="text-muted">مدیریت کلاینت‌های OIDC و تنظیمات احراز هویت</p>
+        <h2>OIDC Application Management</h2>
+        <p class="text-muted">Manage OIDC clients and authentication settings.</p>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h4>کلاینت‌های OIDC ({{ clients|length }} کلاینت)</h4>
+        <h4>OIDC Clients ({{ clients|length }} clients)</h4>
     </div>
     <div class="card-body">
         {% if clients %}
@@ -20,13 +20,13 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th>نام سرویس</th>
+                        <th>Service Name</th>
                         <th>Client ID</th>
                         <th>Client Secret</th>
                         <th>Redirect URIs</th>
-                        <th>وضعیت</th>
-                        <th>تاریخ ایجاد</th>
-                        <th>عملیات</th>
+                        <th>Status</th>
+                        <th>Created On</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -44,7 +44,7 @@
                                 <code id="secret-{{ client.id }}" style="display: none;">{{ client.client_secret }}</code>
                                 <code id="hidden-{{ client.id }}">••••••••••••••••</code>
                                 <button onclick="toggleSecret('{{ client.id }}')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">
-                                    نمایش
+                                    Show
                                 </button>
                             </div>
                         </td>
@@ -56,20 +56,20 @@
                         </td>
                         <td>
                             {% if client.is_active %}
-                            <span class="badge badge-success">فعال</span>
+                            <span class="badge badge-success">Active</span>
                             {% else %}
-                            <span class="badge badge-danger">غیرفعال</span>
+                            <span class="badge badge-danger">Inactive</span>
                             {% endif %}
                         </td>
-                        <td>{{ client.created_at.strftime('%Y/%m/%d') if client.created_at else 'نامشخص' }}</td>
+                        <td>{{ client.created_at.strftime('%Y/%m/%d') if client.created_at else 'Unknown' }}</td>
                         <td>
                             <div class="d-flex" style="gap: 5px;">
-                                <button onclick="editClient('{{ client.id }}')" class="btn btn-sm btn-secondary">ویرایش</button>
-                                <button onclick="regenerateSecret('{{ client.id }}')" class="btn btn-sm btn-warning">تولید Secret جدید</button>
+                                <button onclick="editClient('{{ client.id }}')" class="btn btn-sm btn-secondary">Edit</button>
+                                <button onclick="regenerateSecret('{{ client.id }}')" class="btn btn-sm btn-warning">Regenerate Secret</button>
                                 {% if client.is_active %}
-                                <button onclick="toggleClientStatus('{{ client.id }}', false)" class="btn btn-sm btn-danger">غیرفعال</button>
+                                <button onclick="toggleClientStatus('{{ client.id }}', false)" class="btn btn-sm btn-danger">Disable</button>
                                 {% else %}
-                                <button onclick="toggleClientStatus('{{ client.id }}', true)" class="btn btn-sm btn-success">فعال</button>
+                                <button onclick="toggleClientStatus('{{ client.id }}', true)" class="btn btn-sm btn-success">Enable</button>
                                 {% endif %}
                             </div>
                         </td>
@@ -80,7 +80,7 @@
         </div>
         {% else %}
         <div class="alert alert-info">
-            هیچ کلاینت OIDC یافت نشد.
+            No OIDC clients found.
         </div>
         {% endif %}
     </div>
@@ -88,17 +88,17 @@
 
 <div class="card">
     <div class="card-header">
-        <h4>تنظیمات OIDC</h4>
+        <h4>OIDC Settings</h4>
     </div>
     <div class="card-body">
         <div class="row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
             <div>
-                <h5>Endpoint های OIDC</h5>
+                <h5>OIDC Endpoints</h5>
                 <div class="form-group">
                     <label>Discovery Endpoint:</label>
                     <div class="d-flex align-items-center">
                         <code>/.well-known/openid-configuration</code>
-                        <button onclick="copyToClipboard('/.well-known/openid-configuration')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">کپی</button>
+                        <button onclick="copyToClipboard('/.well-known/openid-configuration')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">Copy</button>
                     </div>
                 </div>
                 
@@ -106,7 +106,7 @@
                     <label>Authorization Endpoint:</label>
                     <div class="d-flex align-items-center">
                         <code>/oauth2/authorize</code>
-                        <button onclick="copyToClipboard('/oauth2/authorize')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">کپی</button>
+                        <button onclick="copyToClipboard('/oauth2/authorize')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">Copy</button>
                     </div>
                 </div>
                 
@@ -114,7 +114,7 @@
                     <label>Token Endpoint:</label>
                     <div class="d-flex align-items-center">
                         <code>/oauth2/token</code>
-                        <button onclick="copyToClipboard('/oauth2/token')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">کپی</button>
+                        <button onclick="copyToClipboard('/oauth2/token')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">Copy</button>
                     </div>
                 </div>
                 
@@ -122,7 +122,7 @@
                     <label>UserInfo Endpoint:</label>
                     <div class="d-flex align-items-center">
                         <code>/oauth2/userinfo</code>
-                        <button onclick="copyToClipboard('/oauth2/userinfo')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">کپی</button>
+                        <button onclick="copyToClipboard('/oauth2/userinfo')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">Copy</button>
                     </div>
                 </div>
                 
@@ -130,23 +130,23 @@
                     <label>JWKS Endpoint:</label>
                     <div class="d-flex align-items-center">
                         <code>/oauth2/jwks</code>
-                        <button onclick="copyToClipboard('/oauth2/jwks')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">کپی</button>
+                        <button onclick="copyToClipboard('/oauth2/jwks')" class="btn btn-sm btn-secondary" style="margin-right: 10px;">Copy</button>
                     </div>
                 </div>
             </div>
             
             <div>
-                <h5>پیکربندی کلاینت</h5>
+                <h5>Client Configuration</h5>
                 <div class="alert alert-info">
-                    <strong>نحوه پیکربندی:</strong><br>
-                    1. Client ID و Client Secret را از جدول بالا کپی کنید<br>
-                    2. Redirect URI را در سرویس هدف تنظیم کنید<br>
-                    3. Issuer URL را به <code>https://login.orcest.ai</code> تنظیم کنید<br>
-                    4. Scope را به <code>openid profile email</code> تنظیم کنید
+                    <strong>Configuration steps:</strong><br>
+                    1. Copy the Client ID and Client Secret from the table above<br>
+                    2. Configure Redirect URI in the target service<br>
+                    3. Set Issuer URL to <code>https://login.orcest.ai</code><br>
+                    4. Set Scope to <code>openid profile email</code>
                 </div>
                 
                 <div class="form-group">
-                    <label>متغیرهای محیطی مورد نیاز:</label>
+                    <label>Required environment variables:</label>
                     <pre style="background: #f8f9fa; padding: 15px; border-radius: 4px; font-size: 12px;">
 SSO_ISSUER=https://login.orcest.ai
 SSO_CLIENT_ID=your_client_id
@@ -167,38 +167,38 @@ function toggleSecret(clientId) {
     if (secretElement.style.display === 'none') {
         secretElement.style.display = 'inline';
         hiddenElement.style.display = 'none';
-        button.textContent = 'مخفی';
+        button.textContent = 'Hide';
     } else {
         secretElement.style.display = 'none';
         hiddenElement.style.display = 'inline';
-        button.textContent = 'نمایش';
+        button.textContent = 'Show';
     }
 }
 
 function copyToClipboard(text) {
     const fullUrl = window.location.origin + text;
     navigator.clipboard.writeText(fullUrl).then(() => {
-        alert('کپی شد: ' + fullUrl);
+        alert('Copied: ' + fullUrl);
     });
 }
 
 function editClient(clientId) {
     // TODO: Implement client editing
-    alert('ویرایش کلاینت: ' + clientId);
+    alert('Edit client: ' + clientId);
 }
 
 function regenerateSecret(clientId) {
-    if (confirm('آیا مطمئن هستید؟ Client Secret جدید تولید شود؟ این عمل غیرقابل بازگشت است.')) {
+    if (confirm('Are you sure you want to generate a new Client Secret? This action cannot be undone.')) {
         // TODO: Implement secret regeneration
-        alert('Client Secret جدید تولید شد: ' + clientId);
+        alert('New Client Secret generated for: ' + clientId);
     }
 }
 
 function toggleClientStatus(clientId, activate) {
-    const action = activate ? 'فعال' : 'غیرفعال';
-    if (confirm(`آیا مطمئن هستید که می‌خواهید این کلاینت را ${action} کنید؟`)) {
+    const action = activate ? 'enabled' : 'disabled';
+    if (confirm(`Are you sure you want to mark this client as ${action}?`)) {
         // TODO: Implement client status toggle
-        alert(`کلاینت ${action} شد: ` + clientId);
+        alert(`Client ${action}: ` + clientId);
     }
 }
 </script>

@@ -1,21 +1,21 @@
 {% extends "base.html" %}
-{% block title %}جزئیات فعالیت کاربر{% endblock %}
+{% block title %}User Activity Details{% endblock %}
 {% block content %}
 <div class="card">
-  <div class="card-header"><h2>جزئیات فعالیت {{ target_user.name }}</h2></div>
+  <div class="card-header"><h2>Activity Details for {{ target_user.name }}</h2></div>
   <div class="card-body">
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-number">{{ activity.total_tokens }}</div><div class="stat-label">کل توکن‌ها</div></div>
-      <div class="stat-card"><div class="stat-number">{{ activity.total_cost }}</div><div class="stat-label">هزینه تخمینی ($)</div></div>
-      <div class="stat-card"><div class="stat-number">{{ activity.avg_quality }}</div><div class="stat-label">میانگین کیفیت</div></div>
+      <div class="stat-card"><div class="stat-number">{{ activity.total_tokens }}</div><div class="stat-label">Total Tokens</div></div>
+      <div class="stat-card"><div class="stat-number">{{ activity.total_cost }}</div><div class="stat-label">Estimated Cost ($)</div></div>
+      <div class="stat-card"><div class="stat-number">{{ activity.avg_quality }}</div><div class="stat-label">Average Quality</div></div>
     </div>
   </div>
 </div>
 
 <div class="card">
-  <div class="card-header"><h4>لاگ استفاده زیرسامانه‌ها</h4></div>
+  <div class="card-header"><h4>Subsystem Usage Logs</h4></div>
   <div class="card-body">
-    <div class="table-responsive"><table class="table"><thead><tr><th>زمان</th><th>زیرسامانه</th><th>مدل</th><th>توکن</th><th>هزینه</th><th>کیفیت</th></tr></thead><tbody>
+    <div class="table-responsive"><table class="table"><thead><tr><th>Time</th><th>Subsystem</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Quality</th></tr></thead><tbody>
       {% for rec in activity.records %}
       <tr>
         <td>{{ rec.created_at.strftime('%Y/%m/%d %H:%M') if rec.created_at else '-' }}</td>
@@ -31,9 +31,9 @@
 </div>
 
 <div class="card">
-  <div class="card-header"><h4>لاگ ورود/فعالیت کاربر</h4></div>
+  <div class="card-header"><h4>User Login/Activity Logs</h4></div>
   <div class="card-body">
-    <div class="table-responsive"><table class="table"><thead><tr><th>زمان</th><th>عملیات</th><th>IP</th><th>جزئیات</th></tr></thead><tbody>
+    <div class="table-responsive"><table class="table"><thead><tr><th>Time</th><th>Action</th><th>IP</th><th>Details</th></tr></thead><tbody>
       {% for log in user_logs %}
       <tr>
         <td>{{ log.timestamp.strftime('%Y/%m/%d %H:%M') if log.timestamp else '-' }}</td>

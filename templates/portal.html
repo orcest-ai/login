@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}پنل امکانات - Orcest AI{% endblock %}
+{% block title %}Feature Portal - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card">
   <div class="card-header">
-    <h2>پنل امکانات سامانه login.orcest.ai</h2>
-    <p class="text-muted">دسترسی سریع به امکانات نمایشی، ویرایشی و مدیریتی پس از ورود.</p>
+    <h2>Feature Portal for login.orcest.ai</h2>
+    <p class="text-muted">Quick access to viewing, editing, and administrative capabilities after login.</p>
   </div>
 </div>
 
@@ -16,7 +16,7 @@
     <div class="card-body">
       <h4>{{ item.title }}</h4>
       <p class="text-muted mb-3">{{ item.desc }}</p>
-      <a href="{{ item.url }}" class="btn btn-sm">ورود به بخش</a>
+      <a href="{{ item.url }}" class="btn btn-sm">Open</a>
     </div>
   </div>
   {% endfor %}

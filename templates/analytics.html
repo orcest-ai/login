@@ -1,22 +1,22 @@
 {% extends "base.html" %}
-{% block title %}تحلیل پیشرفته - Orcest AI{% endblock %}
+{% block title %}Advanced Analytics - Orcest AI{% endblock %}
 {% block content %}
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
-    <h2>تحلیل پیشرفته کاربران و RainyModel</h2>
+    <h2>Advanced User and RainyModel Analytics</h2>
     <form method="post" action="/admin/analytics/rainymodel/sync">
-      <button class="btn btn-success">همگام‌سازی RainyModel</button>
+      <button class="btn btn-success">Sync RainyModel</button>
     </form>
   </div>
   <div class="card-body">
-    <p class="text-muted">نمایش آمار مصرف مدل‌های زبانی، توکن‌ها، هزینه تخمینی، تحلیل کیفیت و نمودارهای کلوچه‌ای/میله‌ای/خطی.</p>
+    <p class="text-muted">View LLM usage statistics, tokens, estimated cost, quality analytics, and pie/bar/line charts.</p>
   </div>
 </div>
 
 <div class="stats-grid">
-  <div class="stat-card"><div class="stat-number">{{ analytics.total_cost }}</div><div class="stat-label">هزینه تخمینی کل ($)</div></div>
-  <div class="stat-card"><div class="stat-number">{{ analytics.quality_avg }}</div><div class="stat-label">میانگین کیفیت</div></div>
-  <div class="stat-card"><div class="stat-number">{{ analytics.subsystem_usage|length }}</div><div class="stat-label">زیرسامانه‌های فعال</div></div>
+  <div class="stat-card"><div class="stat-number">{{ analytics.total_cost }}</div><div class="stat-label">Estimated Total Cost ($)</div></div>
+  <div class="stat-card"><div class="stat-number">{{ analytics.quality_avg }}</div><div class="stat-label">Average Quality</div></div>
+  <div class="stat-card"><div class="stat-number">{{ analytics.subsystem_usage|length }}</div><div class="stat-label">Active Subsystems</div></div>
 </div>
 
 <div class="card"><div class="card-body"><canvas id="pieChart" height="120"></canvas></div></div>
@@ -24,9 +24,9 @@
 <div class="card"><div class="card-body"><canvas id="lineChart" height="120"></canvas></div></div>
 
 <div class="card">
-  <div class="card-header"><h4>جزئیات آخرین رکوردهای استفاده</h4></div>
+  <div class="card-header"><h4>Latest Usage Records</h4></div>
   <div class="card-body">
-    <div class="table-responsive"><table class="table"><thead><tr><th>کاربر</th><th>زیرسامانه</th><th>مدل</th><th>توکن</th><th>هزینه</th><th>کیفیت</th></tr></thead><tbody>
+    <div class="table-responsive"><table class="table"><thead><tr><th>User</th><th>Subsystem</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Quality</th></tr></thead><tbody>
       {% for row in recent_metrics %}
       <tr>
         <td>{{ row.user.email if row.user else '-' }}</td>

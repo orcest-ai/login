@@ -1,65 +1,65 @@
 {% extends "base.html" %}
 
-{% block title %}داشبورد مدیریت - Orcest AI{% endblock %}
+{% block title %}Admin Dashboard - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h2>داشبورد مدیریت</h2>
-        <p class="text-muted">مدیریت کاربران و دسترسی‌های سیستم SSO</p>
+        <h2>Admin Dashboard</h2>
+        <p class="text-muted">Manage users and SSO access controls.</p>
     </div>
 </div>
 
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-number">{{ stats.total_users }}</div>
-        <div class="stat-label">کل کاربران</div>
+        <div class="stat-label">Total Users</div>
     </div>
     <div class="stat-card">
         <div class="stat-number">{{ stats.active_users }}</div>
-        <div class="stat-label">کاربران فعال</div>
+        <div class="stat-label">Active Users</div>
     </div>
     <div class="stat-card">
         <div class="stat-number">{{ stats.active_sessions }}</div>
-        <div class="stat-label">جلسات فعال</div>
+        <div class="stat-label">Active Sessions</div>
     </div>
     <div class="stat-card">
         <div class="stat-number">{{ roles|length }}</div>
-        <div class="stat-label">نقش‌های تعریف شده</div>
+        <div class="stat-label">Defined Roles</div>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h4>عملیات سریع</h4>
+        <h4>Quick Actions</h4>
     </div>
     <div class="card-body">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-            <a href="/admin/users" class="btn">مدیریت کاربران</a>
-            <a href="/admin/sessions" class="btn btn-secondary">مدیریت جلسات</a>
-            <a href="/admin/access" class="btn btn-success">کنترل دسترسی</a>
-            <a href="/admin/applications" class="btn btn-info">اپلیکیشن‌ها</a>
-            <a href="/admin/audit" class="btn btn-warning">گزارش حسابرسی</a>
-            <a href="/admin/analytics" class="btn">تحلیل پیشرفته</a>
+            <a href="/admin/users" class="btn">Manage Users</a>
+            <a href="/admin/sessions" class="btn btn-secondary">Manage Sessions</a>
+            <a href="/admin/access" class="btn btn-success">Access Control</a>
+            <a href="/admin/applications" class="btn btn-info">Applications</a>
+            <a href="/admin/audit" class="btn btn-warning">Audit Logs</a>
+            <a href="/admin/analytics" class="btn">Advanced Analytics</a>
         </div>
     </div>
 </div>
 
 
 <div class="card">
-    <div class="card-header"><h4>شاخص‌های هوشمند مصرف</h4></div>
+    <div class="card-header"><h4>Smart Usage Metrics</h4></div>
     <div class="card-body">
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-number">{{ analytics.total_cost }}</div><div class="stat-label">هزینه تخمینی کل ($)</div></div>
-            <div class="stat-card"><div class="stat-number">{{ analytics.quality_avg }}</div><div class="stat-label">میانگین امتیاز کیفیت</div></div>
-            <div class="stat-card"><div class="stat-number">{{ analytics.model_tokens|length }}</div><div class="stat-label">مدل‌های در حال مصرف</div></div>
+            <div class="stat-card"><div class="stat-number">{{ analytics.total_cost }}</div><div class="stat-label">Estimated Total Cost ($)</div></div>
+            <div class="stat-card"><div class="stat-number">{{ analytics.quality_avg }}</div><div class="stat-label">Average Quality Score</div></div>
+            <div class="stat-card"><div class="stat-number">{{ analytics.model_tokens|length }}</div><div class="stat-label">Models in Use</div></div>
         </div>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h4>آخرین فعالیت‌ها</h4>
+        <h4>Recent Activity</h4>
     </div>
     <div class="card-body">
         {% if recent_logs %}
@@ -67,10 +67,10 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th>زمان</th>
-                        <th>کاربر</th>
-                        <th>عملیات</th>
-                        <th>آدرس IP</th>
+                        <th>Time</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>IP Address</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -82,24 +82,24 @@
                             {{ log.user.name }}<br>
                             <small class="text-muted">{{ log.user.email }}</small>
                             {% else %}
-                            <span class="text-muted">سیستم</span>
+                            <span class="text-muted">System</span>
                             {% endif %}
                         </td>
                         <td>
                             <span class="badge badge-info">{{ log.action }}</span>
                         </td>
-                        <td>{{ log.ip_address or 'نامشخص' }}</td>
+                        <td>{{ log.ip_address or 'Unknown' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         <div class="text-center mt-3">
-            <a href="/admin/audit" class="btn btn-secondary btn-sm">مشاهده کامل گزارش‌ها</a>
+            <a href="/admin/audit" class="btn btn-secondary btn-sm">View Full Logs</a>
         </div>
         {% else %}
         <div class="alert alert-info">
-            هیچ فعالیت اخیری یافت نشد.
+            No recent activity found.
         </div>
         {% endif %}
     </div>
@@ -107,16 +107,16 @@
 
 <div class="card">
     <div class="card-header">
-        <h4>نقش‌ها و مجوزها</h4>
+        <h4>Roles and Permissions</h4>
     </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table">
                 <thead>
                     <tr>
-                        <th>نقش</th>
-                        <th>توضیحات</th>
-                        <th>سرویس‌های مجاز</th>
+                        <th>Role</th>
+                        <th>Description</th>
+                        <th>Allowed Services</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -126,7 +126,7 @@
                         <td>{{ role_info.description }}</td>
                         <td>
                             {% if '*' in role_info.services %}
-                            <span class="badge badge-success">همه سرویس‌ها</span>
+                            <span class="badge badge-success">All Services</span>
                             {% else %}
                             {% for service in role_info.services %}
                             <span class="badge badge-info">{{ service }}</span>

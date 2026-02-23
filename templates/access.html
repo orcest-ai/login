@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}کنترل دسترسی - Orcest AI{% endblock %}
+{% block title %}Access Control - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h2>کنترل دسترسی</h2>
-        <p class="text-muted">مدیریت دسترسی کاربران به سرویس‌های مختلف</p>
+        <h2>Access Control</h2>
+        <p class="text-muted">Manage user access to different services.</p>
     </div>
 </div>
 
 <!-- Grant Access Form -->
 <div class="card">
     <div class="card-header">
-        <h4>اعطای دسترسی جدید</h4>
+        <h4>Grant New Access</h4>
     </div>
     <div class="card-body">
         <form method="post" action="/admin/access/grant">
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
                 <div class="form-group">
-                    <label for="user_id">کاربر:</label>
+                    <label for="user_id">User:</label>
                     <select id="user_id" name="user_id" required>
-                        <option value="">انتخاب کاربر...</option>
+                        <option value="">Select user...</option>
                         {% for user_item in users %}
                         <option value="{{ user_item.id }}">{{ user_item.name }} ({{ user_item.email }})</option>
                         {% endfor %}
@@ -29,9 +29,9 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="service_name">سرویس:</label>
+                    <label for="service_name">Service:</label>
                     <select id="service_name" name="service_name" required>
-                        <option value="">انتخاب سرویس...</option>
+                        <option value="">Select service...</option>
                         {% for service_key, service_domain in service_domains.items() %}
                         <option value="{{ service_key }}">{{ service_key }} ({{ service_domain }})</option>
                         {% endfor %}
@@ -39,16 +39,16 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="days">مدت اعتبار (روز):</label>
+                    <label for="days">Validity Period (days):</label>
                     <select id="days" name="days" required>
-                        <option value="7">7 روز</option>
-                        <option value="14">14 روز</option>
-                        <option value="30" selected>30 روز (حداکثر)</option>
+                        <option value="7">7 days</option>
+                        <option value="14">14 days</option>
+                        <option value="30" selected>30 days (max)</option>
                     </select>
                 </div>
             </div>
             
-            <button type="submit" class="btn btn-success">اعطای دسترسی</button>
+            <button type="submit" class="btn btn-success">Grant Access</button>
         </form>
     </div>
 </div>
@@ -56,7 +56,7 @@
 <!-- Users Access Matrix -->
 <div class="card">
     <div class="card-header">
-        <h4>ماتریس دسترسی کاربران</h4>
+        <h4>User Access Matrix</h4>
     </div>
     <div class="card-body">
         {% if users %}
@@ -64,8 +64,8 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th>کاربر</th>
-                        <th>نقش</th>
+                        <th>User</th>
+                        <th>Role</th>
                         {% for service_key, service_domain in service_domains.items() %}
                         <th class="text-center">{{ service_key }}<br><small>{{ service_domain }}</small></th>
                         {% endfor %}
@@ -87,13 +87,13 @@
                             {% set active_grant = user_item.access_grants|selectattr('service_name', 'equalto', service_key)|selectattr('expires_at', 'gt', moment.now())|first %}
                             
                             {% if has_role_access and active_grant %}
-                            <span class="badge badge-success">فعال</span><br>
-                            <small class="text-muted">تا {{ active_grant.expires_at.strftime('%m/%d') }}</small>
+                            <span class="badge badge-success">Active</span><br>
+                            <small class="text-muted">until {{ active_grant.expires_at.strftime('%m/%d') }}</small>
                             {% elif has_role_access %}
-                            <span class="badge badge-warning">نیاز به تأیید</span><br>
-                            <button onclick="grantAccess('{{ user_item.id }}', '{{ service_key }}')" class="btn btn-sm btn-success">اعطا</button>
+                            <span class="badge badge-warning">Pending Grant</span><br>
+                            <button onclick="grantAccess('{{ user_item.id }}', '{{ service_key }}')" class="btn btn-sm btn-success">Grant</button>
                             {% else %}
-                            <span class="badge badge-danger">عدم دسترسی</span>
+                            <span class="badge badge-danger">No Access</span>
                             {% endif %}
                         </td>
                         {% endfor %}
@@ -104,7 +104,7 @@
         </div>
         {% else %}
         <div class="alert alert-info">
-            هیچ کاربری یافت نشد.
+            No users found.
         </div>
         {% endif %}
     </div>
@@ -113,7 +113,7 @@
 <!-- Active Grants -->
 <div class="card">
     <div class="card-header">
-        <h4>دسترسی‌های فعال</h4>
+        <h4>Active Access Grants</h4>
     </div>
     <div class="card-body">
         {% set all_grants = [] %}
@@ -130,13 +130,13 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th>کاربر</th>
-                        <th>سرویس</th>
-                        <th>تاریخ اعطا</th>
-                        <th>انقضا</th>
-                        <th>اعطاکننده</th>
-                        <th>وضعیت</th>
-                        <th>عملیات</th>
+                        <th>User</th>
+                        <th>Service</th>
+                        <th>Granted On</th>
+                        <th>Expires On</th>
+                        <th>Granted By</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -148,7 +148,7 @@
                         </td>
                         <td>
                             <strong>{{ grant.service_name }}</strong><br>
-                            <small class="text-muted">{{ service_domains.get(grant.service_name, 'نامشخص') }}</small>
+                            <small class="text-muted">{{ service_domains.get(grant.service_name, 'Unknown') }}</small>
                         </td>
                         <td>{{ grant.granted_at.strftime('%Y/%m/%d') }}</td>
                         <td>{{ grant.expires_at.strftime('%Y/%m/%d') }}</td>
@@ -156,18 +156,18 @@
                         <td>
                             {% set days_left = (grant.expires_at - moment.now()).days %}
                             {% if days_left > 7 %}
-                            <span class="badge badge-success">فعال</span>
+                            <span class="badge badge-success">Active</span>
                             {% elif days_left > 0 %}
-                            <span class="badge badge-warning">{{ days_left }} روز باقی</span>
+                            <span class="badge badge-warning">{{ days_left }} days left</span>
                             {% else %}
-                            <span class="badge badge-danger">منقضی شده</span>
+                            <span class="badge badge-danger">Expired</span>
                             {% endif %}
                         </td>
                         <td>
                             <button onclick="revokeAccess('{{ user_item.id }}', '{{ grant.service_name }}')" 
-                                    class="btn btn-danger btn-sm">لغو</button>
+                                    class="btn btn-danger btn-sm">Revoke</button>
                             <button onclick="renewAccess('{{ user_item.id }}', '{{ grant.service_name }}')" 
-                                    class="btn btn-success btn-sm">تمدید</button>
+                                    class="btn btn-success btn-sm">Renew</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -176,7 +176,7 @@
         </div>
         {% else %}
         <div class="alert alert-info">
-            هیچ دسترسی فعالی یافت نشد.
+            No active access grants found.
         </div>
         {% endif %}
     </div>
@@ -190,17 +190,17 @@ function grantAccess(userId, serviceName) {
 }
 
 function revokeAccess(userId, serviceName) {
-    if (confirm(`آیا مطمئن هستید که می‌خواهید دسترسی ${serviceName} را لغو کنید؟`)) {
+    if (confirm(`Are you sure you want to revoke access to ${serviceName}?`)) {
         // TODO: Implement access revocation
-        alert(`دسترسی ${serviceName} لغو شد`);
+        alert(`Access to ${serviceName} has been revoked`);
     }
 }
 
 function renewAccess(userId, serviceName) {
-    const days = prompt('تعداد روزهای تمدید:', '30');
+    const days = prompt('Renew for how many days?', '30');
     if (days && parseInt(days) > 0 && parseInt(days) <= 30) {
         // TODO: Implement access renewal
-        alert(`دسترسی ${serviceName} برای ${days} روز تمدید شد`);
+        alert(`Access to ${serviceName} was renewed for ${days} days`);
     }
 }
 </script>

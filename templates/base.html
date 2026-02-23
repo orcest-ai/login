@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}پورتال SSO Orcest AI{% endblock %}</title>
+    <title>{% block title %}Orcest AI SSO Portal{% endblock %}</title>
     <style>
         * {
             margin: 0;
@@ -16,7 +16,7 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             color: #333;
-            direction: rtl;
+            direction: ltr;
         }
         
         .container {
@@ -238,7 +238,7 @@
         .table th,
         .table td {
             padding: 12px 15px;
-            text-align: right;
+            text-align: left;
             border-bottom: 1px solid #dee2e6;
         }
         
@@ -413,27 +413,27 @@
     <div class="container">
         <div class="header">
             <h1>{% block header %}Orcest AI{% endblock %}</h1>
-            <p>{% block subtitle %}پورتال احراز هویت یکپارچه سازمانی{% endblock %}</p>
+            <p>{% block subtitle %}Unified enterprise authentication portal{% endblock %}</p>
         </div>
         
         <div class="main-content">
             {% if user %}
             <div class="nav">
                 <div class="nav-left">
-                    <a href="/portal">پنل امکانات</a>
-                    <a href="/profile">پروفایل</a>
+                    <a href="/portal">Feature Portal</a>
+                    <a href="/profile">Profile</a>
                     <a href="/analytics">Google Analytics</a>
                     {% if user.role == "admin" %}
-                    <a href="/admin">داشبورد مدیریت</a>
-                    <a href="/admin/users">کاربران</a>
-                    <a href="/admin/sessions">جلسات</a>
-                    <a href="/admin/access">کنترل دسترسی</a>
-                    <a href="/admin/applications">اپلیکیشن‌ها</a>
-                    <a href="/admin/audit">گزارش حسابرسی</a>
-                    <a href="/admin/analytics">تحلیل و RainyModel</a>
+                    <a href="/admin">Admin Dashboard</a>
+                    <a href="/admin/users">Users</a>
+                    <a href="/admin/sessions">Sessions</a>
+                    <a href="/admin/access">Access Control</a>
+                    <a href="/admin/applications">Applications</a>
+                    <a href="/admin/audit">Audit Logs</a>
+                    <a href="/admin/analytics">RainyModel Analytics</a>
                     {% endif %}
                 </div>
-                <a href="/logout" class="logout">خروج</a>
+                <a href="/logout" class="logout">Logout</a>
             </div>
             {% endif %}
             

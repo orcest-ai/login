@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}مدیریت کاربران - Orcest AI{% endblock %}
+{% block title %}User Management - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h2>مدیریت کاربران</h2>
-        <button onclick="toggleCreateForm()" class="btn btn-success">افزودن کاربر جدید</button>
+        <h2>User Management</h2>
+        <button onclick="toggleCreateForm()" class="btn btn-success">Add New User</button>
     </div>
 </div>
 
 <div class="card" id="createUserForm" style="display: none;">
-    <div class="card-header"><h4>ایجاد کاربر جدید</h4></div>
+    <div class="card-header"><h4>Create New User</h4></div>
     <div class="card-body">
         <form method="post" action="/admin/users/create">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-                <div class="form-group"><label>نام:</label><input type="text" name="name" required></div>
-                <div class="form-group"><label>ایمیل:</label><input type="email" name="email" required></div>
+                <div class="form-group"><label>Name:</label><input type="text" name="name" required></div>
+                <div class="form-group"><label>Email:</label><input type="email" name="email" required></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-                <div class="form-group"><label>رمز عبور:</label><input type="password" name="password" minlength="8" required></div>
+                <div class="form-group"><label>Password:</label><input type="password" name="password" minlength="8" required></div>
                 <div class="form-group">
-                    <label>نقش:</label>
+                    <label>Role:</label>
                     <select name="role" required>
                         {% for role_name, role_info in roles.items() %}
                         <option value="{{ role_name }}">{{ role_name }} - {{ role_info.description }}</option>
@@ -29,36 +29,36 @@
                     </select>
                 </div>
             </div>
-            <button type="submit" class="btn btn-success">ایجاد کاربر</button>
+            <button type="submit" class="btn btn-success">Create User</button>
         </form>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-header"><h4>لیست کاربران ({{ users|length }} کاربر)</h4></div>
+    <div class="card-header"><h4>User List ({{ users|length }} users)</h4></div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table">
-                <thead><tr><th>کاربر</th><th>نقش</th><th>وضعیت</th><th>آخرین ورود</th><th>عملیات</th></tr></thead>
+                <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
                 <tbody>
                 {% for user_item in users %}
                     <tr>
                         <td><strong>{{ user_item.name }}</strong><br><small class="text-muted">{{ user_item.email }}</small></td>
                         <td><span class="badge badge-{{ user_item.role }}">{{ user_item.role }}</span></td>
-                        <td>{% if user_item.is_active %}<span class="badge badge-success">فعال</span>{% else %}<span class="badge badge-danger">غیرفعال</span>{% endif %}</td>
-                        <td>{{ user_item.last_login.strftime('%Y/%m/%d %H:%M') if user_item.last_login else 'هرگز' }}</td>
+                        <td>{% if user_item.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-danger">Inactive</span>{% endif %}</td>
+                        <td>{{ user_item.last_login.strftime('%Y/%m/%d %H:%M') if user_item.last_login else 'Never' }}</td>
                         <td>
                             {% if user_item.id != user.id %}
                             <div class="d-flex" style="gap:6px;flex-wrap:wrap;">
-                                <button onclick='openEdit({{ user_item.id|tojson }}, {{ user_item.name|tojson }}, {{ user_item.email|tojson }}, {{ user_item.role|tojson }})' class="btn btn-sm btn-secondary">ویرایش</button>
+                                <button onclick='openEdit({{ user_item.id|tojson }}, {{ user_item.name|tojson }}, {{ user_item.email|tojson }}, {{ user_item.role|tojson }})' class="btn btn-sm btn-secondary">Edit</button>
                                 <form method="post" action="/admin/users/{{ user_item.id }}/status" style="display:inline;">
                                     <input type="hidden" name="is_active" value="{{ 'false' if user_item.is_active else 'true' }}">
-                                    <button class="btn btn-sm {% if user_item.is_active %}btn-warning{% else %}btn-success{% endif %}">{% if user_item.is_active %}غیرفعال{% else %}فعال{% endif %}</button>
+                                    <button class="btn btn-sm {% if user_item.is_active %}btn-warning{% else %}btn-success{% endif %}">{% if user_item.is_active %}Disable{% else %}Enable{% endif %}</button>
                                 </form>
-                                <button onclick='openPassword({{ user_item.id|tojson }})' class="btn btn-sm btn-info">تغییر رمز</button>
-                                <a href="/admin/users/{{ user_item.id }}/activity" class="btn btn-sm">فعالیت</a>
+                                <button onclick='openPassword({{ user_item.id|tojson }})' class="btn btn-sm btn-info">Change Password</button>
+                                <a href="/admin/users/{{ user_item.id }}/activity" class="btn btn-sm">Activity</a>
                             </div>
-                            {% else %}<span class="text-muted">اکانت فعلی</span>{% endif %}
+                            {% else %}<span class="text-muted">Current account</span>{% endif %}
                         </td>
                     </tr>
                 {% endfor %}
@@ -69,27 +69,27 @@
 </div>
 
 <div class="card" id="editCard" style="display:none;">
-    <div class="card-header"><h4>ویرایش کاربر</h4></div>
+    <div class="card-header"><h4>Edit User</h4></div>
     <div class="card-body">
         <form id="editForm" method="post">
-            <div class="form-group"><label>نام</label><input id="editName" name="name" required></div>
-            <div class="form-group"><label>ایمیل</label><input id="editEmail" type="email" name="email" required></div>
-            <div class="form-group"><label>نقش</label>
+            <div class="form-group"><label>Name</label><input id="editName" name="name" required></div>
+            <div class="form-group"><label>Email</label><input id="editEmail" type="email" name="email" required></div>
+            <div class="form-group"><label>Role</label>
                 <select id="editRole" name="role" required>
                     {% for role_name, role_info in roles.items() %}<option value="{{ role_name }}">{{ role_name }}</option>{% endfor %}
                 </select>
             </div>
-            <button class="btn btn-success">ذخیره</button>
+            <button class="btn btn-success">Save</button>
         </form>
     </div>
 </div>
 
 <div class="card" id="passwordCard" style="display:none;">
-    <div class="card-header"><h4>تغییر رمز عبور کاربر</h4></div>
+    <div class="card-header"><h4>Change User Password</h4></div>
     <div class="card-body">
         <form id="passwordForm" method="post">
-            <div class="form-group"><label>رمز جدید</label><input type="password" name="new_password" minlength="8" required></div>
-            <button class="btn btn-success">ثبت رمز جدید</button>
+            <div class="form-group"><label>New Password</label><input type="password" name="new_password" minlength="8" required></div>
+            <button class="btn btn-success">Set New Password</button>
         </form>
     </div>
 </div>

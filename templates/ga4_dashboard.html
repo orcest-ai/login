@@ -55,17 +55,17 @@
 
 {% if ga4_data and ga4_data.ok %}
 <div class="card">
-    <div class="card-header"><h4>کاربران فعال و روند ترافیک</h4></div>
+    <div class="card-header"><h4>Active Users and Traffic Trend</h4></div>
     <div class="card-body"><canvas id="trendChart" height="110"></canvas></div>
 </div>
 
 <div class="card">
-    <div class="card-header"><h4>منابع ترافیک</h4></div>
+    <div class="card-header"><h4>Traffic Sources</h4></div>
     <div class="card-body"><canvas id="trafficChart" height="120"></canvas></div>
 </div>
 
 <div class="card">
-    <div class="card-header"><h4>جغرافیای کاربران</h4></div>
+    <div class="card-header"><h4>User Geography</h4></div>
     <div class="card-body"><canvas id="geoChart" height="120"></canvas></div>
 </div>
 
@@ -132,10 +132,10 @@
 
 {% if not ga4_data or not ga4_data.ok %}
 <div class="card">
-    <div class="card-header"><h4>وضعیت داشبورد</h4></div>
+    <div class="card-header"><h4>Dashboard Status</h4></div>
     <div class="card-body">
         <div class="alert alert-info">
-            داده‌ای برای نمایش موجود نیست. پس از بررسی تنظیمات GA4 و Service Account، صفحه را دوباره باز کنید.
+            No data is currently available. Verify GA4 and Service Account settings, then reload this page.
         </div>
     </div>
 </div>

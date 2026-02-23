@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}مدیریت جلسات - Orcest AI{% endblock %}
+{% block title %}Session Management - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h2>مدیریت جلسات فعال</h2>
-        <p class="text-muted">مشاهده و مدیریت تمام جلسات فعال کاربران</p>
+        <h2>Active Session Management</h2>
+        <p class="text-muted">View and manage all active user sessions.</p>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h4>جلسات فعال ({{ sessions|length }} جلسه)</h4>
-        <button onclick="refreshSessions()" class="btn btn-secondary btn-sm">بروزرسانی</button>
+        <h4>Active Sessions ({{ sessions|length }} sessions)</h4>
+        <button onclick="refreshSessions()" class="btn btn-secondary btn-sm">Refresh</button>
     </div>
     <div class="card-body">
         {% if sessions %}
@@ -21,14 +21,14 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th>کاربر</th>
-                        <th>دستگاه</th>
-                        <th>آدرس IP</th>
-                        <th>مکان</th>
-                        <th>ایجاد شده</th>
-                        <th>آخرین فعالیت</th>
-                        <th>مدت زمان</th>
-                        <th>عملیات</th>
+                        <th>User</th>
+                        <th>Device</th>
+                        <th>IP Address</th>
+                        <th>Location</th>
+                        <th>Created At</th>
+                        <th>Last Activity</th>
+                        <th>Duration</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -40,30 +40,30 @@
                             <span class="badge badge-{{ session.user.role }}">{{ session.user.role }}</span>
                         </td>
                         <td>
-                            <strong>{{ session.device_info or 'نامشخص' }}</strong>
+                            <strong>{{ session.device_info or 'Unknown' }}</strong>
                             {% if session.user_agent %}
                             <br><small class="text-muted">{{ session.user_agent[:50] }}{% if session.user_agent|length > 50 %}...{% endif %}</small>
                             {% endif %}
                         </td>
-                        <td>{{ session.ip_address or 'نامشخص' }}</td>
-                        <td>{{ session.location or 'نامشخص' }}</td>
+                        <td>{{ session.ip_address or 'Unknown' }}</td>
+                        <td>{{ session.location or 'Unknown' }}</td>
                         <td>{{ session.created_at.strftime('%Y/%m/%d %H:%M') }}</td>
-                        <td>{{ session.last_activity.strftime('%Y/%m/%d %H:%M') if session.last_activity else 'نامشخص' }}</td>
+                        <td>{{ session.last_activity.strftime('%Y/%m/%d %H:%M') if session.last_activity else 'Unknown' }}</td>
                         <td>
                             {% set duration = (session.last_activity or session.created_at) - session.created_at %}
                             {% if duration.days > 0 %}
-                            {{ duration.days }} روز
+                            {{ duration.days }} days
                             {% elif duration.seconds > 3600 %}
-                            {{ (duration.seconds // 3600) }} ساعت
+                            {{ (duration.seconds // 3600) }} hours
                             {% else %}
-                            {{ (duration.seconds // 60) }} دقیقه
+                            {{ (duration.seconds // 60) }} minutes
                             {% endif %}
                         </td>
                         <td>
                             <form method="post" action="/admin/sessions/{{ session.id }}/revoke" style="display: inline;">
                                 <button type="submit" class="btn btn-danger btn-sm" 
-                                        onclick="return confirm('آیا مطمئن هستید که می‌خواهید این جلسه را لغو کنید؟')">
-                                    لغو جلسه
+                                        onclick="return confirm('Are you sure you want to revoke this session?')">
+                                    Revoke Session
                                 </button>
                             </form>
                         </td>
@@ -75,12 +75,12 @@
         
         <div class="mt-3">
             <div class="alert alert-info">
-                <strong>نکته:</strong> جلسات منقضی شده به‌طور خودکار پاک می‌شوند. جلسات فعال حداکثر 24 ساعت اعتبار دارند.
+                <strong>Note:</strong> Expired sessions are removed automatically. Active sessions are valid for up to 24 hours.
             </div>
         </div>
         {% else %}
         <div class="alert alert-info">
-            هیچ جلسه فعالی یافت نشد.
+            No active sessions found.
         </div>
         {% endif %}
     </div>
@@ -88,25 +88,25 @@
 
 <div class="card">
     <div class="card-header">
-        <h4>آمار جلسات</h4>
+        <h4>Session Statistics</h4>
     </div>
     <div class="card-body">
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-number">{{ sessions|length }}</div>
-                <div class="stat-label">جلسات فعال</div>
+                <div class="stat-label">Active Sessions</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ sessions|selectattr('user.role', 'equalto', 'admin')|list|length }}</div>
-                <div class="stat-label">جلسات مدیر</div>
+                <div class="stat-label">Admin Sessions</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ sessions|map(attribute='user.id')|unique|list|length }}</div>
-                <div class="stat-label">کاربران منحصربه‌فرد</div>
+                <div class="stat-label">Unique Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">{{ sessions|map(attribute='ip_address')|unique|list|length }}</div>
-                <div class="stat-label">IP های منحصربه‌فرد</div>
+                <div class="stat-label">Unique IPs</div>
             </div>
         </div>
     </div>

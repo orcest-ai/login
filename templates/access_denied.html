@@ -1,32 +1,32 @@
 {% extends "base.html" %}
 
-{% block title %}دسترسی مجاز نیست - Orcest AI{% endblock %}
+{% block title %}Access Denied - Orcest AI{% endblock %}
 
 {% block content %}
 <div class="card" style="max-width: 500px; margin: 50px auto 0;">
     <div class="card-header text-center">
-        <h2>دسترسی مجاز نیست</h2>
+        <h2>Access Denied</h2>
     </div>
     <div class="card-body text-center">
         <div class="alert alert-error">
-            <strong>متأسفیم!</strong> شما به سرویس <strong>{{ service_name }}</strong> دسترسی ندارید.
+            <strong>Sorry!</strong> You do not have access to the <strong>{{ service_name }}</strong> service.
         </div>
         
         <p class="text-muted mb-3">
-            برای دریافت دسترسی، لطفاً با مدیر سیستم تماس بگیرید.
+            To request access, please contact your system administrator.
         </p>
         
         <div class="mb-3">
-            <strong>اطلاعات درخواست:</strong><br>
+            <strong>Request details:</strong><br>
             <small class="text-muted">
-                سرویس: {{ service_name }}<br>
+                Service: {{ service_name }}<br>
                 Client ID: {{ client_id }}<br>
-                کاربر: {{ user.name }} ({{ user.email }})
+                User: {{ user.name }} ({{ user.email }})
             </small>
         </div>
         
-        <a href="/profile" class="btn btn-secondary">بازگشت به پروفایل</a>
-        <a href="/logout" class="btn btn-danger">خروج</a>
+        <a href="/profile" class="btn btn-secondary">Back to Profile</a>
+        <a href="/logout" class="btn btn-danger">Logout</a>
     </div>
 </div>
 {% endblock %}

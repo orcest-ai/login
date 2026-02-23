@@ -280,19 +280,19 @@ async def portal_page(request: Request, db: Session = Depends(get_db)):
     user = require_auth(request, db)
 
     management_links = [
-        {"title": "پروفایل کاربری", "desc": "مشاهده اطلاعات، جلسات و دسترسی‌ها", "url": "/profile", "type": "view"},
-        {"title": "Google Analytics", "desc": "گزارش کامل کاربران، ترافیک، صفحات و نرخ تعامل", "url": "/analytics", "type": "analytics"},
+        {"title": "User Profile", "desc": "View profile details, sessions, and access grants", "url": "/profile", "type": "view"},
+        {"title": "Google Analytics", "desc": "Complete dashboard for users, traffic, pages, and engagement", "url": "/analytics", "type": "analytics"},
     ]
 
     if user.role == "admin":
         management_links.extend([
-            {"title": "داشبورد مدیریت", "desc": "شاخص‌های کلان و فعالیت‌های اخیر", "url": "/admin", "type": "dashboard"},
-            {"title": "مدیریت کاربران", "desc": "ایجاد، ویرایش، نقش‌دهی و فعال/غیرفعال", "url": "/admin/users", "type": "manage"},
-            {"title": "مدیریت جلسات", "desc": "بازبینی و ابطال نشست‌های فعال", "url": "/admin/sessions", "type": "security"},
-            {"title": "کنترل دسترسی", "desc": "اعطای دسترسی به زیرسامانه‌ها", "url": "/admin/access", "type": "access"},
-            {"title": "اپلیکیشن‌های OIDC", "desc": "مدیریت کلاینت‌ها و یکپارچه‌سازی SSO", "url": "/admin/applications", "type": "sso"},
-            {"title": "گزارش حسابرسی", "desc": "لاگ ورود و رویدادهای امنیتی", "url": "/admin/audit", "type": "audit"},
-            {"title": "تحلیل RainyModel", "desc": "توکن، هزینه، کیفیت و نمودارها", "url": "/admin/analytics", "type": "analytics"},
+            {"title": "Admin Dashboard", "desc": "Top-level metrics and recent activity", "url": "/admin", "type": "dashboard"},
+            {"title": "User Management", "desc": "Create, edit, role assignment, activate/deactivate", "url": "/admin/users", "type": "manage"},
+            {"title": "Session Management", "desc": "Review and revoke active sessions", "url": "/admin/sessions", "type": "security"},
+            {"title": "Access Control", "desc": "Grant subsystem access permissions", "url": "/admin/access", "type": "access"},
+            {"title": "OIDC Applications", "desc": "Manage clients and SSO integrations", "url": "/admin/applications", "type": "sso"},
+            {"title": "Audit Logs", "desc": "Login logs and security events", "url": "/admin/audit", "type": "audit"},
+            {"title": "RainyModel Analytics", "desc": "Tokens, costs, quality, and charts", "url": "/admin/analytics", "type": "analytics"},
         ])
 
     return templates.TemplateResponse("portal.html", {
@@ -313,7 +313,7 @@ async def profile_edit(
 
     clean_name = name.strip()
     if not clean_name or len(clean_name) < 2:
-        return RedirectResponse(url="/profile?error=نام معتبر وارد کنید", status_code=302)
+        return RedirectResponse(url="/profile?error=Please enter a valid name", status_code=302)
 
     UserService.update_user(db, user.id, name=clean_name)
     AuditService.log_action(
@@ -321,7 +321,7 @@ async def profile_edit(
         request.headers.get("User-Agent", ""),
         details={"field": "name"}
     )
-    return RedirectResponse(url="/profile?success=پروفایل بروزرسانی شد", status_code=302)
+    return RedirectResponse(url="/profile?success=Profile updated successfully", status_code=302)
 
 
 @app.get("/analytics", response_class=HTMLResponse)
