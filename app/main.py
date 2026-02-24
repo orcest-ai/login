@@ -20,7 +20,7 @@ from .database import get_db, init_database
 from .models import (
     User, Session as UserSession, AccessGrant, OIDCClient, AuditLog,
     AuthorizationCode, RefreshToken, UsageMetric, Group, GroupMembership,
-    Workspace, WorkspaceMembership,
+    Workspace, WorkspaceMembership, UserProfile,
 )
 from .services import (
     UserService, SessionService, AccessGrantService, AuditService,
@@ -35,19 +35,240 @@ logger = logging.getLogger(__name__)
 
 # Bootstrap organizational users to recover access after database resets.
 ORG_BOOTSTRAP_USERS = [
-    {"email": "touba@orcest.ai", "name": "Touba Hamidi Choulabi", "password": "@dZotP1C^f1", "role": "admin"},
-    {"email": "zara@orcest.ai", "name": "Zahra Mohammadi Joughan", "password": "iQcI2%&vUN-v", "role": "developer"},
-    {"email": "amirali@orcest.ai", "name": "Amirali SeyedMajidi", "password": "^1(MdXb8lL)$", "role": "developer"},
-    {"email": "safally@orcest.ai", "name": "Safa Hadisi", "password": "z7jdyQ^5QysT", "role": "developer"},
-    {"email": "sani@orcest.ai", "name": "Narges Javidi Monavari Sani", "password": "zg6Vdx&3u(Tb", "role": "developer"},
-    {"email": "arvin@orcest.ai", "name": "Arvin Ghasemi Tuchaei", "password": "!ey(vsFiLYBD", "role": "developer"},
-    {"email": "ali@orcest.ai", "name": "Ali Nozad", "password": "t-br5C*+h6Ng", "role": "developer"},
-    {"email": "parvaneh@orcest.ai", "name": "Parvaneh Salem karbasdehi", "password": "qK+BjQzX4)z4", "role": "viewer"},
-    {"email": "nika@orcest.ai", "name": "Nika Yazdinia", "password": "jeNBiJ-0_A7", "role": "researcher"},
-    {"email": "amir@orcest.ai", "name": "Amir Mahdi Soltan Pour Moghaddam", "password": "6aN2Z@Y#x_gO", "role": "researcher"},
-    {"email": "mohammadreza@orcest.ai", "name": "Mohammadreza Samari", "password": "j%kRt9V&W)5^", "role": "viewer"},
-    {"email": "zoha@orcest.ai", "name": "Zoha Kazemi Moghadam", "password": "S^8d&Lr3Jp@*", "role": "viewer"},
-    {"email": "sina@orcest.ai", "name": "Mohammadhassan Hojati Zidashti", "password": "mV7h&*k^Q1P@0", "role": "viewer"},
+    {
+        "email": "touba@orcest.ai",
+        "name": "Touba Hamidi Choulabi",
+        "password": "@dZotP1C^f1",
+        "role": "admin",
+        "first_name": "Touba",
+        "last_name": "Hamidi Choulabi",
+        "nickname": "Touba",
+        "date_of_birth_gregorian": "1997-03-06",
+        "date_of_birth_solar_hijri": "1375/12/16",
+        "mobile_number": "+989925923908",
+        "iranian_mobile_number": "+989925923908",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "toubahamidi@gmail.com",
+        "persian_name": "طوبی",
+    },
+    {
+        "email": "zara@orcest.ai",
+        "name": "Zahra Mohammadi Joughan",
+        "password": "iQcI2%&vUN-v",
+        "role": "developer",
+        "first_name": "Zahra",
+        "last_name": "Mohammadi Joughan",
+        "nickname": "Zara",
+        "date_of_birth_gregorian": "2001-08-22",
+        "date_of_birth_solar_hijri": "1380/05/31",
+        "mobile_number": "+989921115730",
+        "iranian_mobile_number": "+989921115730",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "zara.mohammadi7333@gmail.com",
+        "persian_name": "زهرا",
+    },
+    {
+        "email": "amirali@orcest.ai",
+        "name": "Amirali SeyedMajidi",
+        "password": "^1(MdXb8lL)$",
+        "role": "developer",
+        "first_name": "Amirali",
+        "last_name": "Seyed Majidi",
+        "nickname": "Amirali",
+        "date_of_birth_gregorian": "1996-02-05",
+        "date_of_birth_solar_hijri": "1374/11/16",
+        "mobile_number": "+989300003233",
+        "iranian_mobile_number": "+989300003233",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "Amiraliseyedmajidi@gmail.com",
+        "persian_name": "امیرعلی",
+    },
+    {
+        "email": "safally@orcest.ai",
+        "name": "Safa Hadisi",
+        "password": "z7jdyQ^5QysT",
+        "role": "developer",
+        "first_name": "Safa",
+        "last_name": "Hadisi",
+        "nickname": "Safally",
+        "date_of_birth_gregorian": "1998-05-18",
+        "date_of_birth_solar_hijri": "1377/02/28",
+        "mobile_number": "+989017273359",
+        "iranian_mobile_number": "+989017273359",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "hadisi.safa@gmail.com",
+        "persian_name": "صفا",
+    },
+    {
+        "email": "sani@orcest.ai",
+        "name": "Narges Javidi Monavari Sani",
+        "password": "zg6Vdx&3u(Tb",
+        "role": "developer",
+        "first_name": "Narges",
+        "last_name": "Javidi Monavari Sani",
+        "nickname": "Sani",
+        "date_of_birth_gregorian": "1998-11-28",
+        "date_of_birth_solar_hijri": "1377/09/07",
+        "mobile_number": "+989390729254",
+        "iranian_mobile_number": "+989390729254",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "javidi.n77@gmail.com",
+        "persian_name": "نرگس",
+    },
+    {
+        "email": "arvin@orcest.ai",
+        "name": "Arvin Ghasemi Tuchaei",
+        "password": "!ey(vsFiLYBD",
+        "role": "developer",
+        "first_name": "Arvin",
+        "last_name": "Ghasemi Tuchaei",
+        "nickname": "Arvin",
+        "date_of_birth_gregorian": "2003-07-18",
+        "date_of_birth_solar_hijri": "1382/04/27",
+        "mobile_number": "+989115055459",
+        "iranian_mobile_number": "+989115055459",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "arvin.ght123@gmail.com",
+        "persian_name": "آروین",
+    },
+    {
+        "email": "ali@orcest.ai",
+        "name": "Ali Nozad",
+        "password": "t-br5C*+h6Ng",
+        "role": "developer",
+        "first_name": "Ali",
+        "last_name": "Nozad",
+        "nickname": "Ali",
+        "date_of_birth_gregorian": "2004-10-17",
+        "date_of_birth_solar_hijri": "1383/07/26",
+        "mobile_number": "+989113055679",
+        "iranian_mobile_number": "+989113055679",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "imalinozad@gmail.com",
+        "persian_name": "علی",
+    },
+    {
+        "email": "parvaneh@orcest.ai",
+        "name": "Parvaneh Salem karbasdehi",
+        "password": "qK+BjQzX4)z4",
+        "role": "viewer",
+        "first_name": "Parvaneh",
+        "last_name": "Salem Karbasdehi",
+        "nickname": "Parvaneh",
+        "date_of_birth_gregorian": "1986-09-17",
+        "date_of_birth_solar_hijri": "1365/06/26",
+        "mobile_number": "+989113339927",
+        "iranian_mobile_number": "+989113339927",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "Parvaneh.salem@yahoo.com",
+        "persian_name": "پروانه",
+    },
+    {
+        "email": "nika@orcest.ai",
+        "name": "Nika Yazdinia",
+        "password": "jeNBiJ-0_A7",
+        "role": "researcher",
+        "first_name": "Nika",
+        "last_name": "Yazdinia",
+        "nickname": "Nika",
+        "date_of_birth_gregorian": "2000-05-13",
+        "date_of_birth_solar_hijri": "1379/02/24",
+        "mobile_number": "+989912068433",
+        "iranian_mobile_number": "+989912068433",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "nikayazdinia5113@gmail.com",
+        "persian_name": "نیکا",
+    },
+    {
+        "email": "amir@orcest.ai",
+        "name": "Amir Mahdi Soltan Pour Moghaddam",
+        "password": "6aN2Z@Y#x_gO",
+        "role": "researcher",
+        "first_name": "Amir",
+        "last_name": "Mahdi Soltan Pour Moghaddam",
+        "nickname": "Amir",
+        "date_of_birth_gregorian": "1997-12-17",
+        "date_of_birth_solar_hijri": "1376/09/26",
+        "mobile_number": "+989158390951",
+        "iranian_mobile_number": "+989158390951",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "soltanpour.amir76@gmail.com",
+        "persian_name": "امیر",
+    },
+    {
+        "email": "mohammadreza@orcest.ai",
+        "name": "Mohammadreza Samari",
+        "password": "j%kRt9V&W)5^",
+        "role": "viewer",
+        "first_name": "Mohammadreza",
+        "last_name": "Samari",
+        "nickname": "Mohammadreza",
+        "date_of_birth_gregorian": "",
+        "date_of_birth_solar_hijri": "",
+        "mobile_number": "+989121257740",
+        "iranian_mobile_number": "+989121257740",
+        "canadian_mobile_number": "",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "m.r.samari77@gmail.com",
+        "persian_name": "محمدرضا",
+    },
+    {
+        "email": "zoha@orcest.ai",
+        "name": "Zoha Kazemi Moghadam",
+        "password": "S^8d&Lr3Jp@*",
+        "role": "viewer",
+        "first_name": "Zoha",
+        "last_name": "Kazemi Moghadam",
+        "nickname": "Zoha",
+        "date_of_birth_gregorian": "",
+        "date_of_birth_solar_hijri": "",
+        "mobile_number": "+16724729898",
+        "iranian_mobile_number": "+989123191552",
+        "canadian_mobile_number": "+167247298980",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "Zohakazemimoghadam@gmil.com",
+        "persian_name": "ضحی",
+    },
+    {
+        "email": "sina@orcest.ai",
+        "name": "Mohammadhassan Hojati Zidashti",
+        "password": "mV7h&*k^Q1P@0",
+        "role": "viewer",
+        "first_name": "Mohammadhassan",
+        "last_name": "Hojati Zidashti",
+        "nickname": "Sina",
+        "date_of_birth_gregorian": "",
+        "date_of_birth_solar_hijri": "",
+        "mobile_number": "+989127954236",
+        "iranian_mobile_number": "+989127954236",
+        "canadian_mobile_number": "+167276278780",
+        "titan_login_link": "https://app.titan.email",
+        "orcest_login_link": "https://login.orcest.ai",
+        "personal_email": "Sinahojati86@gmail.com",
+        "persian_name": "سینا",
+    },
 ]
 
 app = FastAPI(
@@ -101,6 +322,9 @@ async def startup_event():
 
             # Ensure required organizational users exist and stay active.
             for user_data in ORG_BOOTSTRAP_USERS:
+                def _clean_text(value: object) -> str:
+                    return str(value or "").strip()
+
                 email = user_data["email"].strip().lower()
                 if not email.endswith("@orcest.ai"):
                     logger.warning("Skipping non-org email in bootstrap list: %s", email)
@@ -113,7 +337,7 @@ async def startup_event():
 
                 existing_user = UserService.get_user_by_email(db, email)
                 if not existing_user:
-                    UserService.create_user(
+                    target_user = UserService.create_user(
                         db,
                         email,
                         user_data["name"],
@@ -123,7 +347,7 @@ async def startup_event():
                     )
                     logger.info("Bootstrap created user: %s", email)
                 else:
-                    UserService.update_user(
+                    target_user = UserService.update_user(
                         db,
                         existing_user.id,
                         name=user_data["name"],
@@ -132,6 +356,32 @@ async def startup_event():
                         is_active=True,
                     )
                     logger.info("Bootstrap updated user: %s", email)
+
+                profile = db.query(UserProfile).filter(UserProfile.user_id == target_user.id).first()
+                if not profile:
+                    profile = UserProfile(user_id=target_user.id)
+                    db.add(profile)
+
+                profile.full_name = _clean_text(user_data.get("name"))
+                profile.first_name = _clean_text(user_data.get("first_name"))
+                profile.last_name = _clean_text(user_data.get("last_name"))
+                profile.new_email = email
+                profile.nickname = _clean_text(user_data.get("nickname"))
+                profile.date_of_birth_gregorian = _clean_text(user_data.get("date_of_birth_gregorian"))
+                profile.date_of_birth_solar_hijri = _clean_text(user_data.get("date_of_birth_solar_hijri"))
+                profile.mobile_number = _clean_text(user_data.get("mobile_number"))
+                profile.iranian_mobile_number = _clean_text(user_data.get("iranian_mobile_number"))
+                profile.canadian_mobile_number = _clean_text(user_data.get("canadian_mobile_number"))
+                profile.password_plain = _clean_text(user_data.get("password"))
+                profile.orcest_password_plain = _clean_text(user_data.get("password"))
+                profile.titan_login_link = _clean_text(user_data.get("titan_login_link"))
+                profile.orcest_login_link = _clean_text(user_data.get("orcest_login_link"))
+                profile.role_login_orcest_ai = role
+                profile.personal_email = _clean_text(user_data.get("personal_email"))
+                profile.persian_name = _clean_text(user_data.get("persian_name"))
+                db.commit()
+                db.refresh(profile)
+                logger.info("Bootstrap upserted profile: %s", email)
             
             # Initialize OIDC clients
             OIDCService.init_default_clients(db)

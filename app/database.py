@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 from .models import (
     Base, User, Session as UserSession, AccessGrant, OIDCClient, AuditLog,
     AuthorizationCode, RefreshToken, UsageMetric, Group, GroupMembership,
-    Workspace, WorkspaceMembership,
+    Workspace, WorkspaceMembership, UserProfile,
 )
 
 logger = logging.getLogger(__name__)

@@ -24,6 +24,7 @@ class User(Base):
     access_grants = relationship("AccessGrant", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     usage_metrics = relationship("UsageMetric", back_populates="user", cascade="all, delete-orphan")
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     group_memberships = relationship("GroupMembership", back_populates="user", cascade="all, delete-orphan")
     owned_workspaces = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
     workspace_memberships = relationship("WorkspaceMembership", back_populates="user", cascade="all, delete-orphan")
@@ -52,6 +53,34 @@ class Session(Base):
         Index('ix_sessions_user_active', 'user_id', 'revoked'),
         Index('ix_sessions_expires', 'expires_at'),
     )
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    full_name = Column(String, nullable=True)
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    new_email = Column(String, nullable=True)
+    nickname = Column(String, nullable=True)
+    date_of_birth_gregorian = Column(String, nullable=True)
+    date_of_birth_solar_hijri = Column(String, nullable=True)
+    mobile_number = Column(String, nullable=True)
+    iranian_mobile_number = Column(String, nullable=True)
+    canadian_mobile_number = Column(String, nullable=True)
+    password_plain = Column(String, nullable=True)
+    orcest_password_plain = Column(String, nullable=True)
+    titan_login_link = Column(String, nullable=True)
+    orcest_login_link = Column(String, nullable=True)
+    role_login_orcest_ai = Column(String, nullable=True)
+    personal_email = Column(String, nullable=True)
+    persian_name = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="profile")
 
 
 class AccessGrant(Base):
