@@ -1013,6 +1013,34 @@ async def admin_audit_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
+def _serialize_user_profile(user: User, profile: Optional[UserProfile]) -> dict:
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "is_active": user.is_active,
+        "last_login": user.last_login.isoformat() if user.last_login else None,
+        "full_name": profile.full_name if profile else None,
+        "first_name": profile.first_name if profile else None,
+        "last_name": profile.last_name if profile else None,
+        "new_email": profile.new_email if profile else None,
+        "nickname": profile.nickname if profile else None,
+        "date_of_birth_gregorian": profile.date_of_birth_gregorian if profile else None,
+        "date_of_birth_solar_hijri": profile.date_of_birth_solar_hijri if profile else None,
+        "mobile_number": profile.mobile_number if profile else None,
+        "iranian_mobile_number": profile.iranian_mobile_number if profile else None,
+        "canadian_mobile_number": profile.canadian_mobile_number if profile else None,
+        "titan_login_link": profile.titan_login_link if profile else None,
+        "orcest_login_link": profile.orcest_login_link if profile else None,
+        "role_login_orcest_ai": profile.role_login_orcest_ai if profile else None,
+        "personal_email": profile.personal_email if profile else None,
+        "persian_name": profile.persian_name if profile else None,
+        "profile_created_at": profile.created_at.isoformat() if profile and profile.created_at else None,
+        "profile_updated_at": profile.updated_at.isoformat() if profile and profile.updated_at else None,
+    }
+
+
 def _collect_admin_user_profiles(db: Session) -> list[dict]:
     rows = (
         db.query(User, UserProfile)
@@ -1021,35 +1049,7 @@ def _collect_admin_user_profiles(db: Session) -> list[dict]:
         .order_by(User.email.asc())
         .all()
     )
-
-    output: list[dict] = []
-    for user, profile in rows:
-        output.append({
-            "user_id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role,
-            "is_active": user.is_active,
-            "last_login": user.last_login.isoformat() if user.last_login else None,
-            "full_name": profile.full_name if profile else None,
-            "first_name": profile.first_name if profile else None,
-            "last_name": profile.last_name if profile else None,
-            "new_email": profile.new_email if profile else None,
-            "nickname": profile.nickname if profile else None,
-            "date_of_birth_gregorian": profile.date_of_birth_gregorian if profile else None,
-            "date_of_birth_solar_hijri": profile.date_of_birth_solar_hijri if profile else None,
-            "mobile_number": profile.mobile_number if profile else None,
-            "iranian_mobile_number": profile.iranian_mobile_number if profile else None,
-            "canadian_mobile_number": profile.canadian_mobile_number if profile else None,
-            "titan_login_link": profile.titan_login_link if profile else None,
-            "orcest_login_link": profile.orcest_login_link if profile else None,
-            "role_login_orcest_ai": profile.role_login_orcest_ai if profile else None,
-            "personal_email": profile.personal_email if profile else None,
-            "persian_name": profile.persian_name if profile else None,
-            "profile_created_at": profile.created_at.isoformat() if profile and profile.created_at else None,
-            "profile_updated_at": profile.updated_at.isoformat() if profile and profile.updated_at else None,
-        })
-    return output
+    return [_serialize_user_profile(user, profile) for user, profile in rows]
 
 
 @app.get("/api/admin/user-profiles")
@@ -1058,6 +1058,27 @@ async def admin_user_profiles_api(request: Request, db: Session = Depends(get_db
     _ = require_admin(request, db)
     profiles = _collect_admin_user_profiles(db)
     return {"ok": True, "count": len(profiles), "profiles": profiles}
+
+
+@app.get("/api/admin/user-profiles/by-email")
+async def admin_user_profile_by_email(request: Request, email: str, db: Session = Depends(get_db)):
+    """Read-only admin endpoint for a single organizational user profile."""
+    _ = require_admin(request, db)
+    normalized_email = email.strip().lower()
+    if not normalized_email.endswith("@orcest.ai"):
+        raise HTTPException(status_code=400, detail="Only @orcest.ai emails are allowed")
+
+    row = (
+        db.query(User, UserProfile)
+        .outerjoin(UserProfile, UserProfile.user_id == User.id)
+        .filter(User.email == normalized_email)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user, profile = row
+    return {"ok": True, "profile": _serialize_user_profile(user, profile)}
 
 
 @app.get("/api/admin/user-profiles.csv")
