@@ -33,6 +33,23 @@ from .ga4_service import GA4Service, GA4ServiceError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Bootstrap organizational users to recover access after database resets.
+ORG_BOOTSTRAP_USERS = [
+    {"email": "touba@orcest.ai", "name": "Touba Hamidi Choulabi", "password": "@dZotP1C^f1", "role": "admin"},
+    {"email": "zara@orcest.ai", "name": "Zahra Mohammadi Joughan", "password": "iQcI2%&vUN-v", "role": "developer"},
+    {"email": "amirali@orcest.ai", "name": "Amirali SeyedMajidi", "password": "^1(MdXb8lL)$", "role": "developer"},
+    {"email": "safally@orcest.ai", "name": "Safa Hadisi", "password": "z7jdyQ^5QysT", "role": "developer"},
+    {"email": "sani@orcest.ai", "name": "Narges Javidi Monavari Sani", "password": "zg6Vdx&3u(Tb", "role": "developer"},
+    {"email": "arvin@orcest.ai", "name": "Arvin Ghasemi Tuchaei", "password": "!ey(vsFiLYBD", "role": "developer"},
+    {"email": "ali@orcest.ai", "name": "Ali Nozad", "password": "t-br5C*+h6Ng", "role": "developer"},
+    {"email": "parvaneh@orcest.ai", "name": "Parvaneh Salem karbasdehi", "password": "qK+BjQzX4)z4", "role": "viewer"},
+    {"email": "nika@orcest.ai", "name": "Nika Yazdinia", "password": "jeNBiJ-0_A7", "role": "researcher"},
+    {"email": "amir@orcest.ai", "name": "Amir Mahdi Soltan Pour Moghaddam", "password": "6aN2Z@Y#x_gO", "role": "researcher"},
+    {"email": "mohammadreza@orcest.ai", "name": "Mohammadreza Samari", "password": "j%kRt9V&W)5^", "role": "viewer"},
+    {"email": "zoha@orcest.ai", "name": "Zoha Kazemi Moghadam", "password": "S^8d&Lr3Jp@*", "role": "viewer"},
+    {"email": "sina@orcest.ai", "name": "Mohammadhassan Hojati Zidashti", "password": "mV7h&*k^Q1P@0", "role": "viewer"},
+]
+
 app = FastAPI(
     title="Orcest AI SSO Portal",
     description="Enterprise SSO Identity Provider for the Orcest AI ecosystem",
@@ -81,6 +98,40 @@ async def startup_event():
                     db, admin_email, "Admin", admin_password, "admin", "system"
                 )
                 logger.info(f"Created admin user: {admin_email}")
+
+            # Ensure required organizational users exist and stay active.
+            for user_data in ORG_BOOTSTRAP_USERS:
+                email = user_data["email"].strip().lower()
+                if not email.endswith("@orcest.ai"):
+                    logger.warning("Skipping non-org email in bootstrap list: %s", email)
+                    continue
+
+                role = user_data["role"].strip().lower()
+                if role not in ROLES:
+                    logger.warning("Skipping user with invalid role: %s (%s)", email, role)
+                    continue
+
+                existing_user = UserService.get_user_by_email(db, email)
+                if not existing_user:
+                    UserService.create_user(
+                        db,
+                        email,
+                        user_data["name"],
+                        user_data["password"],
+                        role,
+                        "system-bootstrap",
+                    )
+                    logger.info("Bootstrap created user: %s", email)
+                else:
+                    UserService.update_user(
+                        db,
+                        existing_user.id,
+                        name=user_data["name"],
+                        role=role,
+                        password=user_data["password"],
+                        is_active=True,
+                    )
+                    logger.info("Bootstrap updated user: %s", email)
             
             # Initialize OIDC clients
             OIDCService.init_default_clients(db)
