@@ -1,4 +1,6 @@
 import os
+import csv
+import io
 import json
 import logging
 import secrets
@@ -7,7 +9,7 @@ from typing import Optional
 import random
 
 from fastapi import FastAPI, Request, Depends, HTTPException, Form, status
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -1009,6 +1011,81 @@ async def admin_audit_page(request: Request, db: Session = Depends(get_db)):
         "has_next": page < total_pages,
         "has_prev": page > 1
     })
+
+
+def _collect_admin_user_profiles(db: Session) -> list[dict]:
+    rows = (
+        db.query(User, UserProfile)
+        .outerjoin(UserProfile, UserProfile.user_id == User.id)
+        .filter(User.email.like("%@orcest.ai"))
+        .order_by(User.email.asc())
+        .all()
+    )
+
+    output: list[dict] = []
+    for user, profile in rows:
+        output.append({
+            "user_id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "is_active": user.is_active,
+            "last_login": user.last_login.isoformat() if user.last_login else None,
+            "full_name": profile.full_name if profile else None,
+            "first_name": profile.first_name if profile else None,
+            "last_name": profile.last_name if profile else None,
+            "new_email": profile.new_email if profile else None,
+            "nickname": profile.nickname if profile else None,
+            "date_of_birth_gregorian": profile.date_of_birth_gregorian if profile else None,
+            "date_of_birth_solar_hijri": profile.date_of_birth_solar_hijri if profile else None,
+            "mobile_number": profile.mobile_number if profile else None,
+            "iranian_mobile_number": profile.iranian_mobile_number if profile else None,
+            "canadian_mobile_number": profile.canadian_mobile_number if profile else None,
+            "titan_login_link": profile.titan_login_link if profile else None,
+            "orcest_login_link": profile.orcest_login_link if profile else None,
+            "role_login_orcest_ai": profile.role_login_orcest_ai if profile else None,
+            "personal_email": profile.personal_email if profile else None,
+            "persian_name": profile.persian_name if profile else None,
+            "profile_created_at": profile.created_at.isoformat() if profile and profile.created_at else None,
+            "profile_updated_at": profile.updated_at.isoformat() if profile and profile.updated_at else None,
+        })
+    return output
+
+
+@app.get("/api/admin/user-profiles")
+async def admin_user_profiles_api(request: Request, db: Session = Depends(get_db)):
+    """Read-only admin endpoint for organizational user profiles."""
+    _ = require_admin(request, db)
+    profiles = _collect_admin_user_profiles(db)
+    return {"ok": True, "count": len(profiles), "profiles": profiles}
+
+
+@app.get("/api/admin/user-profiles.csv")
+async def admin_user_profiles_csv(request: Request, db: Session = Depends(get_db)):
+    """Read-only CSV export for organizational user profiles."""
+    _ = require_admin(request, db)
+    profiles = _collect_admin_user_profiles(db)
+
+    fieldnames = [
+        "user_id", "email", "name", "role", "is_active", "last_login",
+        "full_name", "first_name", "last_name", "new_email", "nickname",
+        "date_of_birth_gregorian", "date_of_birth_solar_hijri",
+        "mobile_number", "iranian_mobile_number", "canadian_mobile_number",
+        "titan_login_link", "orcest_login_link", "role_login_orcest_ai",
+        "personal_email", "persian_name", "profile_created_at", "profile_updated_at",
+    ]
+
+    csv_buffer = io.StringIO()
+    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    for row in profiles:
+        writer.writerow(row)
+
+    return Response(
+        content=csv_buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=user_profiles.csv"},
+    )
 
 
 # ============================================================================
